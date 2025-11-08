@@ -2228,7 +2228,6 @@ def render_battle():
 # handle the selection OUTSIDE the form block
 if apply_pick:
     STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
-    # no save_state here; per-session selection only
 
 selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
 enc = STATE["opponents"]["encounters"][selected_enc_idx]
