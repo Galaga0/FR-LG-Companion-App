@@ -293,6 +293,17 @@ st.markdown("""
 .row:last-child{border-bottom:none}
 .head{font-weight:600;color:#111827}
 .small{font-size:12px;color:#6b7280}
+
+/* Compact move grids */
+.moves-grid{display:inline-block; max-width:100%; margin:2px 0;}
+.moves-grid table{border-collapse:collapse; table-layout:auto; width:auto;}
+.moves-grid th, .moves-grid td{padding:2px 6px; border-bottom:1px solid #eee; font-size:13px; white-space:nowrap;}
+.moves-grid tr:nth-child(even){background:#fafafa;}
+.moves-grid .mv-name{font-weight:600;}
+.moves-grid .eff.good{color:#065f46;}     /* green */
+.moves-grid .eff.neutral{color:#374151;}  /* gray */
+.moves-grid .eff.bad{color:#7a1f1f;}      /* red */
+.moves-grid .eff.zero{color:#6b7280;}     /* muted */
 </style>
 """, unsafe_allow_html=True)
 
@@ -1864,6 +1875,68 @@ def _format_battle_result_line(name: str, your_total: int, opp_total: int, offen
     """Minimal battle line per user spec: no move parentheticals."""
     return f"{name} — (Your Total: {your_total} vs Opp Total: {opp_total}) — Offense: {offense} | Defense: {defense} → Total {total}"
 
+def _mult_emoji(mult: float) -> str:
+    # Emojis for all x? except 0x
+    mapping = {4.0:"💥", 2.0:"🟢", 1.0:"⚪", 0.5:"🔻", 0.25:"⛔"}
+    return mapping.get(float(mult), "")
+
+def _grade_class(mult: float) -> str:
+    if mult >= 2.0: return "good"
+    if mult == 1.0: return "neutral"
+    if mult == 0.0: return "zero"
+    return "bad"
+
+def _render_moves_grid(rows: List[Dict], offense: bool):
+    """
+    rows: list of dicts with keys: move, type, mult, score
+    offense=True: sort by best offense (desc score), star best
+    offense=False: sort by best defense (asc score), star best
+    Renders as compact HTML table (no index column).
+    """
+    if not rows:
+        st.caption("—")
+        return
+
+    if offense:
+        rows2 = sorted(rows, key=lambda x: (-x["score"], x["move"] or ""))
+        best_val = max(r["score"] for r in rows2)
+    else:
+        rows2 = sorted(rows, key=lambda x: (x["score"], x["move"] or ""))
+        best_val = min(r["score"] for r in rows2)
+
+    # Make Move column exactly as wide as the longest name
+    longest = max(len((r.get("move") or "")) for r in rows2) if rows2 else 4
+    colgroup = f"<colgroup><col style='width:{longest + 2}ch'><col><col><col></colgroup>"
+
+    html = [
+        "<div class='moves-grid'><table>",
+        colgroup,
+        "<thead><tr><th>Move</th><th>Type</th><th>Eff.</th><th>Score</th></tr></thead><tbody>"
+    ]
+    for r in rows2:
+        mv = r.get("move") or "—"
+        tp = r.get("type") or "?"
+        mult = float(r.get("mult", 1.0))
+        score = r.get("score", 0)
+
+        emj = _mult_emoji(mult)
+        klass = _grade_class(mult)
+        # Render multiplier compactly (e.g., x2, x0.25). No emoji for 0x by spec.
+        mult_txt = f"x{int(mult) if mult in (2.0,4.0) else ('0' if mult==0.0 else f'{mult:g}')}"
+        eff_cell = f"{mult_txt} {emj}".strip()
+
+        star = " ★" if ((offense and score == best_val) or (not offense and score == best_val)) and mv != "—" else ""
+        html.append(
+            f"<tr>"
+            f"<td class='mv-name'>{mv}{star}</td>"
+            f"<td>{tp}</td>"
+            f"<td class='eff {klass}'>{eff_cell}</td>"
+            f"<td>{score}</td>"
+            f"</tr>"
+        )
+    html.append("</tbody></table></div>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+
 def render_battle():
     st.header("Battle")
     team = st.session_state.get("active_team", STATE["roster"][:6])
@@ -2079,29 +2152,11 @@ def render_battle():
 
 
         off_rows = r["off_rows"]; def_rows = r["def_rows"]
-        if off_rows:
-            max_off = max(row["score"] for row in off_rows) if off_rows else 0
-            off_table = [{
-                "Move": (row["move"] or "—") + (" ★" if row["score"] == max_off and row["move"] else ""),
-                "Type": row["type"] or "?",
-                "Effectiveness": f"x{row['mult']}",
-                "Offense Score": row["score"],
-            } for row in sorted(off_rows, key=lambda x: (-x["score"], x["move"] or ""))]
-            st.caption("Your moves vs them:"); st.table(off_table)
-        else:
-            st.caption("Your moves vs them: —")
+        st.caption("Your moves vs them:")
+        _render_moves_grid(off_rows, offense=True)
 
-        if def_rows:
-            min_def = min(row["score"] for row in def_rows) if def_rows else 0
-            def_table = [{
-                "Opp Move": (row["move"] or "—") + (" ★" if row["score"] == min_def and row["move"] else ""),
-                "Type": row["type"] or "?",
-                "Effectiveness vs you": f"x{row['mult']}",
-                "Defense Score": row["score"],
-            } for row in sorted(def_rows, key=lambda x: (x["score"], x["move"] or ""))]
-            st.caption("Their moves vs you:"); st.table(def_table)
-        else:
-            st.caption("Their moves vs you: — (no opponent moves)")
+        st.caption("Their moves vs you:")
+        _render_moves_grid(def_rows, offense=False)
 
 # =============================================================================
 # Evolution Watch page
