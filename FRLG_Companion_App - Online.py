@@ -290,47 +290,66 @@ st.set_page_config(page_title="FR/LG Companion App", layout="wide")
 st.markdown("""
 <style>
 :root {
-  --mv-min: 640px;
   --mv-font: 14px;
   --mv-pad-y: 6px;
   --mv-pad-x: 10px;
-  --grid-underline-light: #e5e7eb;   /* light theme grid line */
-  --grid-underline-dark: rgba(255,255,255,0.12); /* dark theme grid line */
-  --arrow-up: #22c55e;   /* green-500 */
-  --arrow-down: #ef4444; /* red-500 */
+  --grid-underline-light: #e5e7eb;
+  --grid-underline-dark: rgba(255,255,255,0.12);
+  --arrow-up: #22c55e;
+  --arrow-down: #ef4444;
 }
 
-.moves-grid{ display:block; min-width:var(--mv-min); max-width:100%; margin:6px 0; }
-.moves-grid table{ border-collapse:collapse; width:100%; table-layout:fixed; }
-.moves-grid col.mv-name { width:30%; }
-.moves-grid col.mv-type { width:12ch; }
-.moves-grid col.meta    { width:8ch; }
+/* Container shrinks to content instead of filling the screen */
+.moves-grid{
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 6px 0;
+}
+@supports not (width: fit-content){
+  .moves-grid{ width: max-content; }
+}
+
+/* Let the table size itself to content; no fixed layout, no forced 100% width */
+.moves-grid table{
+  border-collapse: collapse;
+  table-layout: auto;
+  width: auto;
+}
 
 .moves-grid thead th{
-  position:sticky; top:0; background:transparent; z-index:1; font-weight:600;
+  position: sticky;
+  top: 0;
+  background: transparent;
+  z-index: 1;
+  font-weight: 600;
+  text-align: left;
 }
 
 .moves-grid th, .moves-grid td{
-  padding:var(--mv-pad-y) var(--mv-pad-x); font-size:var(--mv-font);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  border-bottom:1px solid var(--grid-underline-light) !important;
+  padding: var(--mv-pad-y) var(--mv-pad-x);
+  font-size: var(--mv-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--grid-underline-light) !important;
 }
 
-/* Arrow styling (so we’re not stuck with emoji) */
-.moves-grid .mv-score .up   { color: var(--arrow-up); font-weight:700; }
-.moves-grid .mv-score .down { color: var(--arrow-down); font-weight:700; }
-.moves-grid .small{ opacity:.85; }
+.moves-grid .mv-score .up   { color: var(--arrow-up); font-weight: 700; }
+.moves-grid .mv-score .down { color: var(--arrow-down); font-weight: 700; }
+.moves-grid .small{ opacity: .85; }
 
-.moves-grid tbody tr td{ background:transparent !important; }
-.moves-grid tbody tr:nth-of-type(odd) td{ background:transparent !important; }
-.moves-grid tbody tr:hover td{ background:transparent !important; }
+/* keep rows visually neutral */
+.moves-grid tbody tr td{ background: transparent !important; }
+.moves-grid tbody tr:nth-of-type(odd) td{ background: transparent !important; }
+.moves-grid tbody tr:hover td{ background: transparent !important; }
 
 @media (prefers-color-scheme: dark) {
-  .moves-grid th, .moves-grid td { color:#fff !important; }
+  .moves-grid th, .moves-grid td { color: #fff !important; }
   .moves-grid th, .moves-grid td { border-bottom-color: var(--grid-underline-dark) !important; }
 }
 @media (prefers-color-scheme: light) {
-  .moves-grid th, .moves-grid td { color:#111 !important; }
+  .moves-grid th, .moves-grid td { color: #111 !important; }
   .moves-grid th, .moves-grid td { border-bottom-color: var(--grid-underline-light) !important; }
 }
 </style>
@@ -2120,7 +2139,8 @@ def _grade_class(mult: float) -> str:
 def _render_moves_grid(rows, offense: bool):
     rows = [r for r in (rows or []) if (r.get("move") or "").strip() and (r.get("type") or "").strip()]
     if not rows:
-        st.caption("—"); return
+        st.caption("—")
+        return
 
     if offense:
         rows2 = sorted(rows, key=lambda x: (-x["score"], x["move"] or ""))
@@ -2131,7 +2151,6 @@ def _render_moves_grid(rows, offense: bool):
 
     html = [
         "<div class='moves-grid'><table>",
-        "<colgroup><col class='mv-name'><col class='mv-type'><col class='meta'><col class='meta'></colgroup>",
         "<thead><tr><th>Move</th><th>Type</th><th>Eff.</th><th>Score</th></tr></thead><tbody>"
     ]
 
@@ -2142,9 +2161,9 @@ def _render_moves_grid(rows, offense: bool):
         score = int(r.get("score", 0))
         eff_txt = (f"{int(mult)}x" if mult in (2.0, 4.0) else ("0x" if mult == 0.0 else f"{mult:g}x"))
         type_emo = type_emoji(tp)
-        star = " ★" if ((offense and score == best_val) or (not offense and score == best_val)) and mv != "—" else ""
+        star = " ★" if (score == best_val and mv != "—") else ""
 
-        # HTML arrows; no emojis, no green dot
+        # HTML arrows; no emojis here
         if score > 0:
             arrow_html = "<span class='up'>&uarr;</span>"
         elif score < 0:
@@ -2154,7 +2173,7 @@ def _render_moves_grid(rows, offense: bool):
 
         html.append(
             "<tr>"
-            f"<td class='mv-name'>{mv}{star}</td>"
+            f"<td>{mv}{star}</td>"
             f"<td>{type_emo}&nbsp;<span class='small'>{tp}</span></td>"
             f"<td>{eff_txt}</td>"
             f"<td class='mv-score'>{score} {arrow_html}</td>"
