@@ -334,6 +334,9 @@ def _is_allowed_by_version(base_name: str) -> bool:
     if mode == "leafgreen":
         return base_name not in FR_EXCLUSIVE_BASES
     return True  # combined
+    
+def _mew_enabled() -> bool:
+    return bool((STATE.get("settings", {}) or {}).get("allow_mew", True))
 
 OFFENSE_SCORE = {4.0: 4, 2.0: 2, 1.0: 0, 0.5: -2, 0.25: -4, 0.0: -5}
 DEFENSE_SCORE  = {4.0:-4, 2.0:-2, 1.0: 0, 0.5:  2, 0.25:  4, 0.0:  5}
@@ -446,12 +449,13 @@ def _default_state() -> Dict:
             "unique_sig": True,
             "default_level": 5,
             "hide_spinner": True,
-            "catch_unlimited": False,             # NEW
-            "version": "combined",                # NEW: combined | firered | leafgreen
+            "catch_unlimited": False,
+            "version": "combined",
+            "allow_mew": True,                     # NEW
             "visible_pages": {
                 "pokedex": True, "battle": True, "evo": True,
                 "opponents": False, "moves": False, "species": False,
-                "saveload": True, "settings": True                    # NEW
+                "saveload": True, "settings": True
             }
         },
         "opponents": {"meta":{"sheet_url":"","last_loaded":""},"encounters":[], "cleared":[]},
@@ -505,8 +509,9 @@ def migrate_state(state: Dict) -> Dict:
     stg.setdefault("default_level", 5)
     stg.setdefault("unique_sig", True)
     stg.setdefault("hide_spinner", True)
-    stg.setdefault("catch_unlimited", False)           # NEW
-    stg.setdefault("version", "combined")              # NEW
+    stg.setdefault("catch_unlimited", False)
+    stg.setdefault("version", "combined")
+    stg.setdefault("allow_mew", True)              # NEW
     vis = stg.setdefault("visible_pages", {})
     for k, v in _default_state()["settings"]["visible_pages"].items():
         vis.setdefault(k, v)
@@ -1275,41 +1280,51 @@ def finalize_team_unique(roster, K=6, preselected=None):
 def render_settings():
     st.header("Settings")
 
-    # 1) Reset session moved here
-    with st.expander("Session controls", expanded=False):
-        c1, c2 = st.columns([1,4])
-        if c1.button("Reset this session (start fresh)", key="reset_session_btn"):
-            for k in list(st.session_state.keys()):
-                del st.session_state[k]
-            try:
-                st.cache_data.clear()
-            except Exception:
-                pass
-            st.rerun()
-        c2.caption("Per-user session only. No data is written to the server.")
+    # Standalone reset button (no expander)
+    if st.button("Reset this session (start fresh)", key="reset_session_btn"):
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
+        try:
+            st.cache_data.clear()
+        except Exception:
+            pass
+        st.rerun()
+    st.caption("Per-user session only. No data is written to the server.")
 
     st.markdown("---")
 
-    # 2) Catch unlimited toggle
+    # Catch unlimited toggle
     cu_cur = bool(STATE.get("settings", {}).get("catch_unlimited", False))
-    cu_new = st.checkbox("Catch unlimited Pokémon", value=cu_cur, help="If enabled, the Add list ignores species catch limits.")
+    cu_new = st.checkbox("Catch unlimited Pokémon", value=cu_cur,
+                         help="If enabled, the Add list ignores species catch limits.")
     if cu_new != cu_cur:
-        STATE.setdefault("settings", {})["catch_unlimited"] = bool(cu_new)
+        STATE["settings"]["catch_unlimited"] = bool(cu_new)
         save_state(STATE)
         st.success("Updated: Catch unlimited Pokémon")
         do_rerun()
 
-    # 3) Version selector
+    # Version selector
     vmap_disp2key = {"Combined": "combined", "FireRed": "firered", "LeafGreen": "leafgreen"}
     vmap_key2disp = {v:k for k,v in vmap_disp2key.items()}
     cur_mode = STATE.get("settings", {}).get("version", "combined")
     disp_default = vmap_key2disp.get(cur_mode, "Combined")
-    disp_pick = st.radio("Game version filter", ["Combined","FireRed","LeafGreen"], index=["Combined","FireRed","LeafGreen"].index(disp_default))
+    disp_pick = st.radio("Game version filter", ["Combined","FireRed","LeafGreen"],
+                         index=["Combined","FireRed","LeafGreen"].index(disp_default))
     new_mode = vmap_disp2key[disp_pick]
     if new_mode != cur_mode:
         STATE["settings"]["version"] = new_mode
         save_state(STATE)
         st.success(f"Version set to {disp_pick}")
+        do_rerun()
+
+    # Mew toggle
+    mew_cur = bool(STATE.get("settings", {}).get("allow_mew", True))
+    mew_new = st.checkbox("Allow Mew in Pokédex", value=mew_cur,
+                          help="When off, Mew is hidden from the Add list.")
+    if mew_new != mew_cur:
+        STATE["settings"]["allow_mew"] = bool(mew_new)
+        save_state(STATE)
+        st.success("Updated: Mew availability")
         do_rerun()
 
 def render_pokedex():
@@ -1779,8 +1794,8 @@ def available_species_entries() -> List[Tuple[str, str]]:
     - Version filter (Combined/FireRed/LeafGreen).
     - If 'Catch unlimited' ON, ignore count-based gating.
     - Show 'Name (Trade Piece)' for 2-of-2 species (no counts).
-    - Keep existing '[trade reward]' tag.
-    - Sorted alphabetically.
+    - Preserve '[trade reward]' tag.
+    - Hide Mew from Add list when disabled in Settings.
     """
     catch_unlimited = bool(STATE.get("settings", {}).get("catch_unlimited", False))
 
@@ -1808,6 +1823,10 @@ def available_species_entries() -> List[Tuple[str, str]]:
 
         # Version filter on base display name
         if not _is_allowed_by_version(name):
+            continue
+
+        # Hide Mew from Add list if disabled
+        if species_key(name) == species_key("Mew") and not _mew_enabled():
             continue
 
         base_sk = base_key_for(name)
