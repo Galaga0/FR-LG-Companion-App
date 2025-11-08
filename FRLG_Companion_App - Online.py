@@ -2212,18 +2212,18 @@ def render_battle():
         return
 
     with st.form("sheet_pick_form", clear_on_submit=False):
-    enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
-    default_idx = min(STATE.get("last_battle_pick", [0, 0])[0], len(enc_options) - 1)
-    pick = st.selectbox("Encounter (trainer)", enc_options, index=default_idx)
+        enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
+        default_idx = min(STATE.get("last_battle_pick", [0, 0])[0], len(enc_options) - 1)
+        pick = st.selectbox("Encounter (trainer)", enc_options, index=default_idx)
 
-    selected_enc_idx = enc_options.index(pick)
-    enc = STATE["opponents"]["encounters"][selected_enc_idx]
+        selected_enc_idx = enc_options.index(pick)
+        enc = STATE["opponents"]["encounters"][selected_enc_idx]
 
-    mon_labels = [f"{i+1}. {m['species']} Lv{m['level']} (Total {m.get('total',0)})" for i, m in enumerate(enc["mons"])]
-    default_mon_idx = min(STATE.get("last_battle_pick", [0, 0])[1], len(mon_labels) - 1)
-    pick_mon = st.selectbox("Their Pokémon", mon_labels, index=default_mon_idx)
+        mon_labels = [f"{i+1}. {m['species']} Lv{m['level']} (Total {m.get('total',0)})" for i, m in enumerate(enc["mons"])]
+        default_mon_idx = min(STATE.get("last_battle_pick", [0, 0])[1], len(mon_labels) - 1)
+        pick_mon = st.selectbox("Their Pokémon", mon_labels, index=default_mon_idx)
 
-    apply_pick = st.form_submit_button("Load encounter")
+        apply_pick = st.form_submit_button("Load encounter")
 
 # handle the selection OUTSIDE the form block
 if apply_pick:
