@@ -438,9 +438,6 @@ def _is_allowed_by_version(base_name: str) -> bool:
     if mode == "leafgreen":
         return base_name not in FR_EXCLUSIVE_BASES
     return True  # combined
-    
-def _mew_enabled() -> bool:
-    return bool((STATE.get("settings", {}) or {}).get("allow_mew", True))
 
 OFFENSE_SCORE = {4.0: 4, 2.0: 2, 1.0: 0, 0.5: -2, 0.25: -4, 0.0: -5}
 DEFENSE_SCORE  = {4.0:-4, 2.0:-2, 1.0: 0, 0.5:  2, 0.25:  4, 0.0:  5}
@@ -566,7 +563,6 @@ def _default_state() -> Dict:
             "hide_spinner": True,
             "catch_unlimited": False,
             "version": "combined",
-            "allow_mew": True,                     # NEW
             "visible_pages": {
                 "pokedex": True, "battle": True, "evo": True,
                 "opponents": False, "moves": False, "species": False,
@@ -625,8 +621,7 @@ def migrate_state(state: Dict) -> Dict:
     stg.setdefault("unique_sig", True)
     stg.setdefault("hide_spinner", True)
     stg.setdefault("catch_unlimited", False)
-    stg.setdefault("version", "combined")
-    stg.setdefault("allow_mew", True)    
+    stg.setdefault("version", "combined") 
     stg.setdefault("starter", "Bulbasaur") # NEW
     stg.setdefault("dex_scope", "151")  # "151" or "386"
     vis = stg.setdefault("visible_pages", {})
@@ -1517,16 +1512,6 @@ def render_settings():
         st.success(f"Version set to {disp_pick}")
         do_rerun()
 
-    # Mew toggle
-    mew_cur = bool(STATE.get("settings", {}).get("allow_mew", True))
-    mew_new = st.checkbox("Allow Mew in Pokédex", value=mew_cur,
-                          help="When off, Mew is hidden from the Add list.")
-    if mew_new != mew_cur:
-        STATE["settings"]["allow_mew"] = bool(mew_new)
-        save_state(STATE)
-        st.success("Updated: Mew availability")
-        do_rerun()
-
     # Starter selector (controls Rival variants + sheet tab)
     starter_cur = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
     starter_new = st.selectbox(
@@ -2067,10 +2052,6 @@ def available_species_entries() -> List[Tuple[str, str]]:
 
         # Version filter on base display name
         if not _is_allowed_by_version(name):
-            continue
-
-        # Hide Mew from Add list if disabled
-        if species_key(name) == species_key("Mew") and not _mew_enabled():
             continue
 
         base_sk = base_key_for(name)
