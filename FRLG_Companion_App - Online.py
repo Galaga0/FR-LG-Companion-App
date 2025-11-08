@@ -303,27 +303,35 @@ st.markdown("""
 .head{font-weight:600;color:#111827}
 .small{font-size:12px;color:#6b7280}
 
-/* ---- Moves grid: larger, consistent zebra, and hover ---- */
-.moves-grid{display:block; min-width:var(--mv-min); max-width:100%; margin:6px 0;}
+/* ---- Moves grid: force readable colors on white cells ---- */
+.moves-grid{
+  display:block; min-width:640px; max-width:100%; margin:6px 0;
+  color:#111 !important;                 /* default text color inside grid */
+}
 .moves-grid table{border-collapse:collapse; width:100%; table-layout:fixed;}
-.moves-grid thead th{position:sticky; top:0; background:#f9fafb; z-index:1; font-weight:600;}
+.moves-grid thead th{
+  position:sticky; top:0; background:#f9fafb; z-index:1;
+  font-weight:600; color:#111 !important; /* header text visible */
+}
 .moves-grid th, .moves-grid td{
-  padding:var(--mv-pad-y) var(--mv-pad-x);
-  font-size:var(--mv-font);
+  padding:6px 10px; font-size:14px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  color:#111 !important;                 /* body text visible */
+  border-bottom:1px solid #e5e7eb;
 }
 
-/* Default cell bg is white; zebra only affects body rows.
-   Scoping to tbody fixes the “random blank white row” caused by header counting. */
+/* body striping only (don’t count header) */
 .moves-grid tbody tr td{ background:#ffffff; }
 .moves-grid tbody tr:nth-of-type(odd) td{ background:#fafafa; }
 .moves-grid tbody tr:hover td{ background:#eef2f7; }
 
 .moves-grid .mv-name{font-weight:700;}
-.moves-grid .eff.good{color:#065f46;}
-.moves-grid .eff.neutral{color:#374151;}
-.moves-grid .eff.bad{color:#7a1f1f;}
-.moves-grid .eff.zero{color:#6b7280;}
+
+/* Re-assert colors for the Eff. column so they beat the forced text color */
+.moves-grid .eff.good{color:#065f46 !important;}
+.moves-grid .eff.neutral{color:#374151 !important;}
+.moves-grid .eff.bad{color:#7a1f1f !important;}
+.moves-grid .eff.zero{color:#6b7280 !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1906,8 +1914,7 @@ def _grade_class(mult: float) -> str:
     if mult == 0.0: return "zero"
     return "bad"
 
-def _render_moves_grid(rows: List[Dict], offense: bool):
-    # Filter out blank/placeholder rows so you never get an “all-white” nothing row
+def _render_moves_grid(rows, offense: bool):
     rows = [r for r in (rows or []) if (r.get("move") or "").strip() and (r.get("type") or "").strip()]
     if not rows:
         st.caption("—")
