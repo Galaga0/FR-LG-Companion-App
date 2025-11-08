@@ -1093,20 +1093,20 @@ def _build_encounters_for(starter: str, sheet_url: str) -> List[Dict]:
     enc_main = _parse_csv_to_encounters(fetch_text(main_csv)) if main_csv else []
 
     # 2) Collect ALL Rival encounters from ALL tabs
-all_rivals = []
-for s in STARTER_OPTIONS:
-    g = STARTER_GID.get(s)
-    csv_u = parse_sheet_url_to_csv(sheet_url, preferred_gid=g)
-    if not csv_u:
-        continue
-    encs = _parse_csv_to_encounters(fetch_text(csv_u))
-    all_rivals.extend([e for e in encs if is_rival_encounter(e)])
+    all_rivals = []
+    for s in STARTER_OPTIONS:
+        g = STARTER_GID.get(s)
+        csv_u = parse_sheet_url_to_csv(sheet_url, preferred_gid=g)
+        if not csv_u:
+            continue
+        encs = _parse_csv_to_encounters(fetch_text(csv_u))
+        all_rivals.extend([e for e in encs if is_rival_encounter(e)])
 
     # 3) Filter rivals to the correct counter-starter
     rivals_filtered = _filter_rival_encounters(all_rivals, starter)
 
     # 4) Return: main non-rivals + filtered rivals (dedup by label)
-    nonrivals = [e for e in enc_main if "rival" not in (e.get("base_label","").lower())]
+    nonrivals = [e for e in enc_main if not is_rival_encounter(e)]
     by_label = {}
     for e in nonrivals + rivals_filtered:
         by_label[e["label"]] = e
@@ -1116,46 +1116,6 @@ for s in STARTER_OPTIONS:
     main_labels = [e["label"] for e in nonrivals]
     tail = [e for e in merged if e["label"] not in main_labels]
     return nonrivals + tail
-
-def _rival_variant_for_enc(enc: Dict) -> Optional[str]:
-    """Return 'Bulbasaur'|'Charmander'|'Squirtle' if this encounter is a Rival variant, else None."""
-    lbl = (enc.get("base_label") or enc.get("label") or "").lower()
-    if "rival" not in lbl:
-        return None
-    species_keys = {species_key(m.get("species","")) for m in enc.get("mons", [])}
-    if species_keys & BULBA_LINE:  return "Bulbasaur"
-    if species_keys & CHAR_LINE:   return "Charmander"
-    if species_keys & SQUIRT_LINE: return "Squirtle"
-    # fallback: try label text
-    txt = (enc.get("label","") + " " + enc.get("base_label","")).lower()
-    if "bulbasaur" in txt:  return "Bulbasaur"
-    if "charmander" in txt: return "Charmander"
-    if "squirtle" in txt:   return "Squirtle"
-    return None
-
-# Treat an encounter as "Rival" even if the label text is weird
-def is_rival_encounter(enc: Dict) -> bool:
-    lbl = (enc.get("base_label") or enc.get("label") or "").lower()
-    if "rival" in lbl:
-        return True
-    species_keys = {species_key(m.get("species","")) for m in enc.get("mons", [])}
-    return bool(species_keys & (BULBA_LINE | CHAR_LINE | SQUIRT_LINE))
-
-def _filter_rival_encounters(encounters: List[Dict], player_starter: str) -> List[Dict]:
-    want = RIVAL_FOR_PLAYER.get(player_starter, "Charmander")
-    rivals_in = [e for e in encounters if is_rival_encounter(e)]
-    nonrivals = [e for e in encounters if not is_rival_encounter(e)]
-
-    filtered_rivals = []
-    for enc in rivals_in:
-        var = _rival_variant_for_enc(enc)  # 'Bulbasaur'|'Charmander'|'Squirtle'|None
-        if var is None or var == want:
-            filtered_rivals.append(enc)
-
-    if not filtered_rivals and rivals_in:
-        filtered_rivals = rivals_in
-
-    return nonrivals + filtered_rivals
 
 def _reload_opponents_for_current_settings():
     try:
@@ -2172,21 +2132,19 @@ def render_battle():
     # Handle revive-all before any fainted widgets are created
     if st.session_state.pop("_revive_all", False):
         for _m in team:
-            # nulstil checkbokse eksplicit (ikke .pop, det efterlader True i cache)
             st.session_state[f"fainted_{_m.get('guid')}"] = False
 
     if not team:
         st.info("Build a team on the Pokédex page.")
         return
 
-    # === NEW: mark fainted + hide from battle ===
+    # === Mark fainted and hide from battle ===
     fainted_set = set(STATE.get("fainted", []))
 
     with st.expander("Team status: mark fainted / revive", expanded=False):
         cols = st.columns(max(1, min(6, len(team))))
         changed = False
 
-        # Checkbokse for hvert mon
         for i, mon in enumerate(team):
             col = cols[i % len(cols)]
             gid = mon.get("guid")
@@ -2200,31 +2158,24 @@ def render_battle():
             elif not new_val and is_fainted:
                 fainted_set.discard(gid); changed = True
 
-        # Knaprække – defineres lokalt her, så vi ikke bruger en ikke-eksisterende c1
         bcol1, _ = st.columns([1, 4])
         if bcol1.button("Revive all", key="revive_all_btn"):
             STATE["fainted"] = []
             save_state(STATE)
-            # ❌ REMOVE this loop – it modifies widget keys after instantiation:
-            # for _m in team:
-            #     st.session_state[f"fainted_{_m.get('guid')}"] = False
             st.session_state["_revive_all"] = True
             do_rerun()
 
-        # Gem ændringer i fainted-listen
         if changed or set(STATE.get("fainted", [])) != fainted_set:
             STATE["fainted"] = sorted(list(fainted_set))
             save_state(STATE)
             do_rerun()
 
-    # Filtrér fainted fra resten af beregningerne
     team = [m for m in team if m.get("guid") not in STATE.get("fainted", [])]
     if not team:
         st.warning("All your team members are marked fainted. Unmark some to battle.")
         return
 
-    # === END NEW ===
-
+    # Load encounters if empty
     if not STATE["opponents"]["encounters"]:
         st.warning("No opponents loaded yet. Trying to load your default sheet…")
         autoload_opponents_if_empty()
@@ -2232,6 +2183,7 @@ def render_battle():
         st.error("Could not load opponents automatically.")
         return
 
+    # Pick trainer + mon
     with st.form("sheet_pick_form", clear_on_submit=False):
         enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
         default_idx = min(STATE.get("last_battle_pick", [0, 0])[0], len(enc_options) - 1)
@@ -2246,28 +2198,31 @@ def render_battle():
 
         apply_pick = st.form_submit_button("Load encounter")
 
-    # handle the selection OUTSIDE the form block (still inside render_battle)
     if apply_pick:
         STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
 
+    # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
 
-# Clamp encounter index first
-enc_count = len(STATE["opponents"]["encounters"])
-if enc_count == 0:
-    st.error("No encounters loaded."); return
-selected_enc_idx = max(0, min(selected_enc_idx, enc_count - 1))
+    enc_count = len(STATE["opponents"]["encounters"])
+    if enc_count == 0:
+        st.error("No encounters loaded.")
+        return
+    selected_enc_idx = max(0, min(selected_enc_idx, enc_count - 1))
+    enc = STATE["opponents"]["encounters"][selected_enc_idx]
 
-enc = STATE["opponents"]["encounters"][selected_enc_idx]
+    mon_count = len(enc.get("mons", []))
+    if mon_count == 0:
+        st.error("Selected encounter has no Pokémon.")
+        return
+    selected_mon_idx = max(0, min(selected_mon_idx, mon_count - 1))
 
-# Then clamp mon index
-mon_count = len(enc.get("mons", []))
-if mon_count == 0:
-    st.error("Selected encounter has no Pokémon."); return
-selected_mon_idx = max(0, min(selected_mon_idx, mon_count - 1))
-
-opmon = enc["mons"][selected_mon_idx]
-    opp_total = opmon.get("total", 0)
+    opmon = enc["mons"][selected_mon_idx]
+    opp_label = f"{enc.get('label','?')} — {opmon.get('species','?')} Lv{opmon.get('level',1)}"
+    opp_types = tuple(purge_fairy_types_pair(opmon.get("types") or []))
+    t1, t2 = opp_types
+    opp_pairs = list(opmon.get("moves", []))
+    opp_total = int(opmon.get("total", 0))
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
     st.caption(
         f"Opponent: **{opp_label}** | Types: {t1 or '—'} / {t2 or '—'} | "
@@ -2308,9 +2263,7 @@ opmon = enc["mons"][selected_mon_idx]
         if not log:
             st.caption("— empty —")
         else:
-            # Only show undo if restoration is possible (i.e., trainer not already present in current encounters)
-            # Build a quick map of labels
-            current_labels = {enc["label"] for enc in STATE["opponents"]["encounters"]}
+            current_labels = {enc2["label"] for enc2 in STATE["opponents"]["encounters"]}
             for i, item in enumerate(list(reversed(log[-15:]))):
                 if item.get("what") == "pokemon":
                     label = f"• Beat Pokémon: {item.get('species')} (Lv{item.get('level')}) — Trainer: {item.get('trainer')}"
@@ -2323,22 +2276,18 @@ opmon = enc["mons"][selected_mon_idx]
                 if can_undo:
                     if cols[1].button("Undo", key=f"undo_{item.get('id', i)}"):
                         if item.get("what") == "pokemon":
-                            # put mon back into matching encounter
                             for enc2 in STATE["opponents"]["encounters"]:
                                 if enc2["label"] == item["trainer"]:
                                     enc2.setdefault("mons", []).append(item["data"])
                                     break
                         else:
-                            # restore entire trainer only if not present
                             if item["trainer"] not in {e["label"] for e in STATE["opponents"]["encounters"]}:
                                 STATE["opponents"]["encounters"].insert(min(int(item.get("pos",0)), len(STATE["opponents"]["encounters"])), item["data"])
                         save_state(STATE)
                         st.success("Undo applied.")
                         do_rerun()
 
-    # --- scoring helpers (inside render_battle, before you build results) ---
-
-    # --- scoring helpers (keep these INSIDE render_battle) ---
+    # --- scoring helpers ---
     def compute_best_offense(my_moves, opp_types):
         detail = []
         best_score = -9999
@@ -2369,13 +2318,12 @@ opmon = enc["mons"][selected_mon_idx]
                 best_score, best_move, best_mult = sc, mv, mult
         return (best_score, best_move, best_mult), detail
 
-    # --- compute results (still INSIDE render_battle) ---
+    # --- compute results ---
     results = []
-
     for mon in team:
         tpair = purge_fairy_types_pair(mon["types"])
         my_types = (tpair[0], tpair[1])
-        my_total = mon.get("total", 0)
+        my_total = int(mon.get("total", 0))
 
         sp = STATE["species_db"].get(mon.get("species_key") or species_key(mon["species"]), {})
         if not sp.get("learnset"):
@@ -2408,7 +2356,6 @@ opmon = enc["mons"][selected_mon_idx]
             "total_score": total
         })
 
-    # sort and render (yes, STILL inside render_battle)
     results.sort(
         key=lambda r: (r.get("total_score", 0), int((r.get("mon") or {}).get("total", 0))),
         reverse=True
@@ -2427,12 +2374,11 @@ opmon = enc["mons"][selected_mon_idx]
             f"Offense: **{off_sc}** | Defense: **{def_sc}** → **Total {total}**"
         )
 
-        off_rows = r["off_rows"]; def_rows = r["def_rows"]
         st.caption("Your moves vs them:")
-        _render_moves_grid(off_rows, offense=True)
+        _render_moves_grid(r["off_rows"], offense=True)
 
         st.caption("Their moves vs you:")
-        _render_moves_grid(def_rows, offense=False)
+        _render_moves_grid(r["def_rows"], offense=False)
 
 # =============================================================================
 # Evolution Watch page
