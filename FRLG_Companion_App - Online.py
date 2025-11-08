@@ -287,42 +287,22 @@ PERSIST_TO_DISK = False
 
 st.set_page_config(page_title="FR/LG Companion App", layout="wide")
 
-# UI CSS from Copy evo
 st.markdown("""
 <style>
-/* ---- Move grid sizing & readability knobs ---- */
 :root {
-  --mv-min: 640px;          /* hard minimum width so the table doesn’t scrunch */
-  --mv-font: 14px;          /* bump font size */
-  --mv-pad-y: 6px;          /* taller rows */
-  --mv-pad-x: 10px;         /* wider cells */
+  --mv-min: 640px;
+  --mv-font: 14px;
+  --mv-pad-y: 6px;
+  --mv-pad-x: 10px;
+  --grid-underline:#e5e7eb;  /* same color as the other lines */
 }
 
-/* General UI that you already had; leaving alone */
-[data-testid="stStatusWidget"] { visibility: hidden !important; }
-.stSpinner, [data-testid="stSpinner"] { display: none !important; }
-
-.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:12px}
-.b-level{background:#e6f4ea;color:#0b6b2b;border:1px solid #b8e0c3}
-.b-trade{background:#e8f0fe;color:#174ea6;border:1px solid #c6d1ff}
-.b-item{background:#fff4e5;color:#8a4b00;border:1px solid #ffd8a8}
-.b-manual{background:#ececec;color:#444;border:1px solid #d6d6d6}
-.b-ready{background:#e6ffed;color:#055d20;border:1px solid #b2f2bb}
-.b-wait{background:#fff5f5;color:#7a1f1f;border:1px solid #ffc9c9}
-
-.card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04);background:#fff}
-.card h4{margin:0}
-.row{padding:4px 0;border-bottom:1px dashed #e5e7eb}
-.row:last-child{border-bottom:none}
-.head{font-weight:600;color:#111827}
-.small{font-size:12px;color:#6b7280}
-
-/* ---- Moves grid: wide name, meta columns pinned right, transparent row lines ---- */
-.moves-grid{ display:block; min-width:640px; max-width:100%; margin:6px 0; }
+.moves-grid{ display:block; min-width:var(--mv-min); max-width:100%; margin:6px 0; }
 .moves-grid table{ border-collapse:collapse; width:100%; table-layout:fixed; }
 
-/* Column widths: name grows, last 3 are compact meta on the far right */
+/* Name grows, Type gets extra width, last two are compact */
 .moves-grid col.mv-name { width:auto; }
+.moves-grid col.mv-type { width:12ch; }    /* wider Type column */
 .moves-grid col.meta    { width:8ch; }
 
 .moves-grid thead th{
@@ -330,16 +310,15 @@ st.markdown("""
   font-weight:600;
 }
 .moves-grid th, .moves-grid td{
-  padding:6px 10px; font-size:14px;
+  padding:var(--mv-pad-y) var(--mv-pad-x); font-size:var(--mv-font);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  border-bottom:1px solid transparent; /* transparent underlines as requested */
+  border-bottom:1px solid var(--grid-underline); /* visible underlines */
 }
 
 .moves-grid tbody tr td{ background:transparent !important; }
 .moves-grid tbody tr:nth-of-type(odd) td{ background:transparent !important; }
 .moves-grid tbody tr:hover td{ background:transparent !important; }
 
-/* Align last three columns to the right edge */
 .moves-grid td:nth-child(2), .moves-grid th:nth-child(2),
 .moves-grid td:nth-child(3), .moves-grid th:nth-child(3),
 .moves-grid td:nth-child(4), .moves-grid th:nth-child(4){ text-align:right; }
@@ -348,20 +327,9 @@ st.markdown("""
 
 @media (prefers-color-scheme: dark) {
   .moves-grid th, .moves-grid td { color: #fff !important; }
-  .moves-grid thead th { color: #fff !important; }
 }
 @media (prefers-color-scheme: light) {
   .moves-grid th, .moves-grid td { color: #111 !important; }
-  .moves-grid thead th { color: #111 !important; }
-}
-
-@media (prefers-color-scheme: dark) {
-  .moves-grid th, .moves-grid td { color: #fff !important; }
-  .moves-grid thead th { color: #fff !important; }
-}
-@media (prefers-color-scheme: light) {
-  .moves-grid th, .moves-grid td { color: #111 !important; }
-  .moves-grid thead th { color: #111 !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -437,10 +405,11 @@ OFFENSE_SCORE = {4.0: 4, 2.0: 2, 1.0: 0, 0.5: -2, 0.25: -4, 0.0: -5}
 DEFENSE_SCORE  = {4.0:-4, 2.0:-2, 1.0: 0, 0.5:  2, 0.25:  4, 0.0:  5}
 
 # ==== Starter -> sheet tab (gid) ====
+# Bulbasaur -> Venusaur tab, Charmander -> Charizard tab, Squirtle -> Blastoise tab
 STARTER_GID = {
-    "Bulbasaur":  "422900446",  # your Bulbasaur tab
-    "Squirtle":   "349723268",  # your Squirtle tab
-    "Charmander": "775328099",  # your Charmander tab
+    "Bulbasaur":  "422900446",  # Venusaur tab GID
+    "Charmander": "775328099",  # Charizard tab GID
+    "Squirtle":   "349723268",  # Blastoise tab GID
 }
 
 # Single sheet document id, we’ll always override gid based on starter
@@ -1011,13 +980,20 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             r = r + [""] * (10 - len(r))
         if not any(cell.strip() for cell in r):
             continue
-        trainer_cell = clean_invisibles((r[0] or "").strip())
+                trainer_cell = clean_invisibles((r[0] or "").strip())
         poke    = clean_invisibles((r[4] or "").strip())
         lvl_str = clean_invisibles((r[5] or "").strip())
         mv_cols = [clean_move_token(c) for c in r[6:10]]
-        if not starting_skipped and trainer_cell.lower().startswith("starting"):
+
+        # Skip sheet's intro/fake rows for non-Bulbasaur tabs too
+        norm_tr = trainer_cell.lower()
+        if not starting_skipped and norm_tr.startswith("starting"):
             starting_skipped = True
             continue
+        if re.fullmatch(r"\s*exp\s*", norm_tr):   # <- filter the EXP header row
+            continue
+                # end of function:
+    return [enc for enc in encounters_list if enc["mons"] and enc.get("base_label","").lower() != "exp"]
         if trainer_cell:
             base_name = trainer_cell
             name_counts[base_name] = name_counts.get(base_name, 0) + 1
@@ -2114,33 +2090,36 @@ def _render_moves_grid(rows, offense: bool):
         rows2 = sorted(rows, key=lambda x: (x["score"], x["move"] or ""))
         best_val = min(r["score"] for r in rows2)
 
-    def _mult_emoji(mult: float) -> str:
-        return {4.0:"💥", 2.0:"🟢", 1.0:"⚪", 0.5:"🔻", 0.25:"⛔"}.get(float(mult), "")
-
     html = [
         "<div class='moves-grid'><table>",
-        "<colgroup><col class='mv-name'><col class='meta'><col class='meta'><col class='meta'></colgroup>",
+        "<colgroup><col class='mv-name'><col class='mv-type'><col class='meta'><col class='meta'></colgroup>",
         "<thead><tr><th>Move</th><th>Type</th><th>Eff.</th><th>Score</th></tr></thead><tbody>"
     ]
+
     for r in rows2:
         mv = r.get("move") or "—"
         tp = normalize_type(r.get("type") or "") or "?"
         mult = float(r.get("mult", 1.0))
         score = int(r.get("score", 0))
 
+        # Eff. text just shows the multiplier (2x/4x etc.)
         eff_txt = (f"{int(mult)}x" if mult in (2.0, 4.0) else ("0x" if mult == 0.0 else f"{mult:g}x"))
-        mult_emo = _mult_emoji(mult)
-        type_emo = type_emoji(tp)
 
+        # Arrow based strictly on the **score sign** per your rule
+        arrow = "🟢⬆️" if score > 0 else ("🔻" if score < 0 else "•")
+
+        type_emo = type_emoji(tp)
         star = " ★" if ((offense and score == best_val) or (not offense and score == best_val)) and mv != "—" else ""
+
         html.append(
             "<tr>"
             f"<td class='mv-name'>{mv}{star}</td>"
             f"<td>{type_emo}&nbsp;<span class='small'>{tp}</span></td>"
             f"<td>{eff_txt}</td>"
-            f"<td>{score} {mult_emo}</td>"
+            f"<td>{score} {arrow}</td>"
             "</tr>"
         )
+
     html.append("</tbody></table></div>")
     st.markdown("".join(html), unsafe_allow_html=True)
 
