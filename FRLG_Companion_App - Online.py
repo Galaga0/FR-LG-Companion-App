@@ -31,13 +31,27 @@ def _frlg_cached_legal_for_species(species_name: str):
     return moves
 
 def _legal_damaging_moves_for_chain(species_name: str):
-    """Collect damaging moves learnable in Gen 3 (3Lxx/3M/3T) by the species or any
-    of its evolutions/devolutions within Kanto #001–151, using Pokémon Showdown data."""
     try:
         dex = get_pokedex_cached() or {}
         lsets = get_showdown_learnsets_cached() or {}
     except Exception:
         return []
+
+    maxdex = dex_max()
+
+    def _dex_rec(name: str):
+        sid = ps_id(name)
+        rec = dex.get(sid)
+        if rec and rec.get("forme"):
+            rec = None
+        if rec and isinstance(rec.get("num"), int) and 1 <= rec["num"] <= maxdex:
+            return rec
+        for r in dex.values():
+            if r and isinstance(r.get("num"), int) and 1 <= r["num"] <= maxdex and not r.get("forme"):
+                if ps_id(r.get("name","")) == sid:
+                    return r
+        return None
+    # ...rest of your function unchanged...
 
     # Helper to find a Kanto dex record by name
     def _dex_rec(name: str):
@@ -333,6 +347,14 @@ st.markdown("""
 .moves-grid .eff.neutral{color:#374151 !important;}
 .moves-grid .eff.bad{color:#7a1f1f !important;}
 .moves-grid .eff.zero{color:#6b7280 !important;}
+@media (prefers-color-scheme: dark) {
+  .moves-grid th, .moves-grid td { color: #fff !important; }
+  .moves-grid thead th { color: #fff !important; }
+}
+@media (prefers-color-scheme: light) {
+  .moves-grid th, .moves-grid td { color: #111 !important; }
+  .moves-grid thead th { color: #111 !important; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -352,7 +374,11 @@ def stone_with_emoji(name: str) -> str:
     return f"{STONE_EMOJI.get(name, '🪨')} {name}" if name else name
 
 TRADE_EVOLVE_LEVEL = 37
-STONE_ITEMS = ["Fire Stone","Water Stone","Thunder Stone","Leaf Stone","Moon Stone"]
+def stone_items_for_scope() -> list[str]:
+    base = ["Fire Stone","Water Stone","Thunder Stone","Leaf Stone","Moon Stone"]
+    if dex_max() == 386:
+        base.append("Sun Stone")
+    return base
 
 # ==== Player starter -> Rival starter mapping (FR/LG logic) ====
 STARTER_OPTIONS = ["Bulbasaur", "Charmander", "Squirtle"]
@@ -567,6 +593,7 @@ def migrate_state(state: Dict) -> Dict:
     stg.setdefault("version", "combined")
     stg.setdefault("allow_mew", True)    
     stg.setdefault("starter", "Bulbasaur") # NEW
+    stg.setdefault("dex_scope", "151")  # "151" or "386"
     vis = stg.setdefault("visible_pages", {})
     for k, v in _default_state()["settings"]["visible_pages"].items():
         vis.setdefault(k, v)
@@ -827,7 +854,7 @@ def is_kanto_base_for_151(sd: dict, dex: dict) -> bool:
     return not (isinstance(pnum, int) and 1 <= pnum <= 151)
 
 @st.cache_data(show_spinner=False)
-def build_kanto_state_from_web_cached() -> Dict:
+def build_state_from_web_cached(maxdex: int) -> Dict:
     pokedex = get_pokedex_cached()
 
     moves_db = {}
@@ -839,7 +866,7 @@ def build_kanto_state_from_web_cached() -> Dict:
 
     species_db = {}
     for sid, sd in pokedex.items():
-        if not is_kanto_base_for_151(sd, pokedex):
+        if not is_base_for_scope(sd, pokedex, maxdex):
             continue
 
         name = sd.get("name", sid)
@@ -848,7 +875,6 @@ def build_kanto_state_from_web_cached() -> Dict:
         base = sd.get("baseStats", {})
         total = int(sum(base.values())) if base else 0
 
-        # Always use the merged+corrected FRLG learnset
         learnset = rebuild_learnset_for(name) or {}
 
         species_db[species_key(name)] = {
@@ -857,6 +883,19 @@ def build_kanto_state_from_web_cached() -> Dict:
             "total": total,
             "learnset": learnset,
         }
+
+    return {
+        "moves_db": moves_db,
+        "species_db": species_db,
+        "roster": STATE.get("roster", []),
+        "locks": STATE.get("locks", []),
+        "caught_counts": STATE.get("caught_counts", {}),
+        "fulfilled": STATE.get("fulfilled", []),
+        "stone_bag": STATE.get("stone_bag", {}),
+        "settings": STATE.get("settings", {}),
+        "opponents": STATE.get("opponents", {"meta":{"sheet_url":"","last_loaded":""},"encounters":[], "cleared":[]}),
+        "last_battle_pick": STATE.get("last_battle_pick", [0,0]),
+    }
 
     return {
         "moves_db": moves_db,
@@ -897,18 +936,19 @@ def ensure_species_in_db(name: str) -> bool:
     if sk in STATE["species_db"]:
         return True
     dex = get_pokedex_cached()
+    maxdex = dex_max()
     def _find_record(target_name: str):
         rec = dex.get(ps_id(target_name))
         if rec and rec.get("forme"):
             rec = None
-        if rec and not (isinstance(rec.get("num"), int) and 1 <= rec.get("num") <= 151):
+        if rec and not (isinstance(rec.get("num"), int) and 1 <= rec.get("num") <= maxdex):
             rec = None
         if rec:
             return rec
         for _, r in dex.items():
             if ps_id(r.get("name","")) == ps_id(target_name):
                 if r.get("forme"): continue
-                if isinstance(r.get("num"), int) and 1 <= r.get("num") <= 151:
+                if isinstance(r.get("num"), int) and 1 <= r.get("num") <= maxdex:
                     return r
         return None
     sd = _find_record(name)
@@ -926,15 +966,18 @@ def ensure_species_in_db(name: str) -> bool:
 def base_key_for(name: str) -> str:
     dex = get_pokedex_cached()
     cur = dex.get(ps_id(name))
-    if not cur: return species_key(name)
+    if not cur:
+        return species_key(name)
+    maxdex = dex_max()
     while True:
         pre = cur.get("prevo")
-        if not pre: break
+        if not pre:
+            break
         pre_rec = dex.get(ps_id(pre))
-        if not pre_rec: break
-        if pre_rec.get("forme"): break
+        if not pre_rec or pre_rec.get("forme"):
+            break
         num = pre_rec.get("num")
-        if isinstance(num, int) and 1 <= num <= 151:
+        if isinstance(num, int) and 1 <= num <= maxdex:
             cur = pre_rec
         else:
             break
@@ -1051,17 +1094,21 @@ def _rival_variant_for_enc(enc: Dict) -> Optional[str]:
     return None
 
 def _filter_rival_encounters(encounters: List[Dict], player_starter: str) -> List[Dict]:
-    """Keep only Rival encounters that match the correct counter-starter for the chosen player starter."""
+    """Keep only Rival encounters matching counter-starter; if that removes all Rivals, keep them all."""
     want = RIVAL_FOR_PLAYER.get(player_starter, "Charmander")
-    out = []
-    for enc in encounters:
-        base = (enc.get("base_label") or "").lower()
-        if "rival" not in base:
-            out.append(enc); continue
-        var = _rival_variant_for_enc(enc)
+    rivals_in = [e for e in encounters if "rival" in (e.get("base_label","").lower())]
+    nonrivals = [e for e in encounters if "rival" not in (e.get("base_label","").lower())]
+
+    filtered_rivals = []
+    for enc in rivals_in:
+        var = _rival_variant_for_enc(enc)  # 'Bulbasaur'|'Charmander'|'Squirtle'|None
         if var is None or var == want:
-            out.append(enc)
-    return out
+            filtered_rivals.append(enc)
+
+    if not filtered_rivals and rivals_in:
+        filtered_rivals = rivals_in
+
+    return nonrivals + filtered_rivals
 
 def _reload_opponents_for_current_settings():
     """Re-fetch opponents from the sheet and apply the Rival filter for the current starter."""
@@ -1103,6 +1150,7 @@ def autoload_opponents_if_empty():
 # =============================================================================
 def available_evos_for(species_name: str) -> List[Dict]:
     dex = get_pokedex_cached()
+    maxdex = dex_max()
     opts: List[Dict] = []
     me = dex.get(ps_id(species_name))
     if not me: return []
@@ -1110,7 +1158,7 @@ def available_evos_for(species_name: str) -> List[Dict]:
         tgt = dex.get(ps_id(e))
         if not tgt: continue
         if tgt.get("forme"): continue
-        if not (isinstance(tgt.get("num"), int) and 1 <= tgt.get("num") <= 151): continue
+        if not (isinstance(tgt.get("num"), int) and 1 <= tgt.get("num") <= maxdex): continue
         method = None; level = None; item = None
         prevo = tgt.get("prevo")
         if prevo and ps_id(prevo) == ps_id(me.get("name", species_name)):
@@ -1152,6 +1200,22 @@ def evolve_mon_record(mon: Dict, to_species_name: str, rebuild_moves: bool=False
             if mtype: typed.append(((info["name"] if info else m), mtype))
         mon["moves"] = typed
     return True
+
+def dex_max() -> int:
+    return 386 if (STATE.get("settings", {}).get("dex_scope", "151") == "386") else 151
+
+def is_base_for_scope(sd: dict, dex: dict, maxdex: int) -> bool:
+    num = sd.get("num")
+    if not isinstance(num, int) or not (1 <= num <= maxdex):
+        return False
+    if sd.get("forme"):
+        return False
+    prevo = sd.get("prevo")
+    if not prevo:
+        return True
+    pre = dex.get(ps_id(prevo))
+    pnum = pre.get("num") if pre else None
+    return not (isinstance(pnum, int) and 1 <= pnum <= maxdex)
 
 # =============================================================================
 # Matchup helpers
@@ -1220,7 +1284,10 @@ def ensure_bootstrap_ready():
         progress.empty()
 
 ensure_bootstrap_ready()
-
+if not STATE.get("species_db"):
+    base = build_state_from_web_cached(dex_max())
+    STATE["moves_db"] = base["moves_db"]
+    STATE["species_db"] = base["species_db"]
 # =============================================================================
 # UI helpers
 # =============================================================================
@@ -1446,6 +1513,20 @@ def render_settings():
         _reload_opponents_for_current_settings()
         st.success(f"Starter set to {starter_new}. Opponents reloaded.")
         do_rerun()
+scope_cur = (STATE.get("settings", {}).get("dex_scope", "151"))
+scope_disp = "Gen 1–3 (386)" if scope_cur == "386" else "Kanto 151"
+scope_pick = st.radio("Pokédex scope", ["Kanto 151", "Gen 1–3 (386)"],
+                      index=["Kanto 151", "Gen 1–3 (386)"].index(scope_disp),
+                      help="Restricts base species and the Add list to 151 or 386. Your roster is kept.")
+scope_new = "386" if scope_pick == "Gen 1–3 (386)" else "151"
+if scope_new != scope_cur:
+    STATE["settings"]["dex_scope"] = scope_new
+    base = build_state_from_web_cached(dex_max())
+    STATE["moves_db"] = base["moves_db"]
+    STATE["species_db"] = base["species_db"]
+    save_state(STATE)
+    st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
+    do_rerun()
 
 def render_pokedex():
     st.header("Pokédex")
@@ -2000,15 +2081,6 @@ def _render_moves_grid(rows, offense: bool):
     if not rows:
         st.caption("—")
         return
-    """
-    rows: list of dicts with keys: move, type, mult, score
-    offense=True: sort by best offense (desc score), star best
-    offense=False: sort by best defense (asc score), star best
-    Renders as compact HTML table (no index column).
-    """
-    if not rows:
-        st.caption("—")
-        return
 
     if offense:
         rows2 = sorted(rows, key=lambda x: (-x["score"], x["move"] or ""))
@@ -2017,7 +2089,9 @@ def _render_moves_grid(rows, offense: bool):
         rows2 = sorted(rows, key=lambda x: (x["score"], x["move"] or ""))
         best_val = min(r["score"] for r in rows2)
 
-    # Make Move column exactly as wide as the longest name
+    def _mult_emoji(mult: float) -> str:
+        return {4.0:"💥", 2.0:"🟢", 1.0:"⚪", 0.5:"🔻", 0.25:"⛔"}.get(float(mult), "")
+
     longest = max(len((r.get("move") or "")) for r in rows2) if rows2 else 4
     colgroup = f"<colgroup><col style='width:{longest + 2}ch'><col><col><col></colgroup>"
 
@@ -2030,21 +2104,19 @@ def _render_moves_grid(rows, offense: bool):
         mv = r.get("move") or "—"
         tp = r.get("type") or "?"
         mult = float(r.get("mult", 1.0))
-        score = r.get("score", 0)
+        score = int(r.get("score", 0))
 
-        emj = _mult_emoji(mult)
-        klass = _grade_class(mult)
-        # Render multiplier compactly (e.g., x2, x0.25). No emoji for 0x by spec.
-        mult_txt = f"x{int(mult) if mult in (2.0,4.0) else ('0' if mult==0.0 else f'{mult:g}')}"
-        eff_cell = f"{mult_txt} {emj}".strip()
+        eff_txt = (f"{int(mult)}x" if mult in (2.0, 4.0) else ("0x" if mult == 0.0 else f"{mult:g}x"))
+        emoji = _mult_emoji(mult)
+        score_cell = f"{score}x {emoji}".strip()
 
         star = " ★" if ((offense and score == best_val) or (not offense and score == best_val)) and mv != "—" else ""
         html.append(
             f"<tr>"
             f"<td class='mv-name'>{mv}{star}</td>"
             f"<td>{tp}</td>"
-            f"<td class='eff {klass}'>{eff_cell}</td>"
-            f"<td>{score}</td>"
+            f"<td>{eff_txt}</td>"
+            f"<td>{score_cell}</td>"
             f"</tr>"
         )
     html.append("</tbody></table></div>")
@@ -2282,6 +2354,24 @@ def get_species_total(name: str) -> int:
 
 def render_evo_watch():
     st.header("Evolution Watch")
+    stones = STATE.setdefault('stones', {})
+for _s in stone_items_for_scope():
+    stones.setdefault(_s, 0)
+    items = stone_items_for_scope()
+st.subheader("Stone inventory")
+ecols = st.columns(max(1, min(5, len(items))))
+for i, stone in enumerate(items):
+    c = ecols[i % len(ecols)]
+    cur = int(STATE['stones'].get(stone, 0))
+    c.markdown(f"**{stone_with_emoji(stone)}**: {cur}")
+    cc1, cc2 = c.columns(2)
+    if cc1.button("− Remove", key=f"st_dec_{stone.replace(' ', '_')}"):
+        if STATE['stones'].get(stone, 0) > 0:
+            STATE['stones'][stone] -= 1; save_state(STATE); do_rerun()
+    if cc2.button("Add +", key=f"st_inc_{stone.replace(' ', '_')}"):
+        STATE['stones'][stone] = int(STATE['stones'].get(stone, 0)) + 1
+        save_state(STATE); do_rerun()
+
 
     # Ensure stone inventory exists
     stones = STATE.setdefault('stones', {})
@@ -2466,7 +2556,7 @@ def render_evo_watch():
                     if ready_now:
                         if c6.button(btn_label, key=f"evo_watch_btn_{mon['guid']}_{idx}"):
                             # Only consume stone when not forcing AND requirement is actually met
-                            if r["method"] == "item" and r.get("item") in STONE_ITEMS and r["ready"] and not force_all:
+                            if r["method"] == "item" and r.get("item") in stone_items_for_scope() and r["ready"] and not force_all:
                                 if STATE['stones'].get(r["item"], 0) <= 0:
                                     st.error(f"No {r['item']} left.")
                                     do_rerun()
