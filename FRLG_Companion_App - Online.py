@@ -276,6 +276,15 @@ st.set_page_config(page_title="FR/LG Companion App", layout="wide")
 # UI CSS from Copy evo
 st.markdown("""
 <style>
+/* ---- Move grid sizing & readability knobs ---- */
+:root {
+  --mv-min: 640px;          /* hard minimum width so the table doesn’t scrunch */
+  --mv-font: 14px;          /* bump font size */
+  --mv-pad-y: 6px;          /* taller rows */
+  --mv-pad-x: 10px;         /* wider cells */
+}
+
+/* General UI that you already had; leaving alone */
 [data-testid="stStatusWidget"] { visibility: hidden !important; }
 .stSpinner, [data-testid="stSpinner"] { display: none !important; }
 
@@ -294,16 +303,27 @@ st.markdown("""
 .head{font-weight:600;color:#111827}
 .small{font-size:12px;color:#6b7280}
 
-/* Compact move grids */
-.moves-grid{display:inline-block; max-width:100%; margin:2px 0;}
-.moves-grid table{border-collapse:collapse; table-layout:auto; width:auto;}
-.moves-grid th, .moves-grid td{padding:2px 6px; border-bottom:1px solid #eee; font-size:13px; white-space:nowrap;}
-.moves-grid tr:nth-child(even){background:#fafafa;}
-.moves-grid .mv-name{font-weight:600;}
-.moves-grid .eff.good{color:#065f46;}     /* green */
-.moves-grid .eff.neutral{color:#374151;}  /* gray */
-.moves-grid .eff.bad{color:#7a1f1f;}      /* red */
-.moves-grid .eff.zero{color:#6b7280;}     /* muted */
+/* ---- Moves grid: larger, consistent zebra, and hover ---- */
+.moves-grid{display:block; min-width:var(--mv-min); max-width:100%; margin:6px 0;}
+.moves-grid table{border-collapse:collapse; width:100%; table-layout:fixed;}
+.moves-grid thead th{position:sticky; top:0; background:#f9fafb; z-index:1; font-weight:600;}
+.moves-grid th, .moves-grid td{
+  padding:var(--mv-pad-y) var(--mv-pad-x);
+  font-size:var(--mv-font);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* Default cell bg is white; zebra only affects body rows.
+   Scoping to tbody fixes the “random blank white row” caused by header counting. */
+.moves-grid tbody tr td{ background:#ffffff; }
+.moves-grid tbody tr:nth-of-type(odd) td{ background:#fafafa; }
+.moves-grid tbody tr:hover td{ background:#eef2f7; }
+
+.moves-grid .mv-name{font-weight:700;}
+.moves-grid .eff.good{color:#065f46;}
+.moves-grid .eff.neutral{color:#374151;}
+.moves-grid .eff.bad{color:#7a1f1f;}
+.moves-grid .eff.zero{color:#6b7280;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1887,6 +1907,11 @@ def _grade_class(mult: float) -> str:
     return "bad"
 
 def _render_moves_grid(rows: List[Dict], offense: bool):
+    # Filter out blank/placeholder rows so you never get an “all-white” nothing row
+    rows = [r for r in (rows or []) if (r.get("move") or "").strip() and (r.get("type") or "").strip()]
+    if not rows:
+        st.caption("—")
+        return
     """
     rows: list of dicts with keys: move, type, mult, score
     offense=True: sort by best offense (desc score), star best
