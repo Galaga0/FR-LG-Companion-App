@@ -420,7 +420,16 @@ def _mew_enabled() -> bool:
 OFFENSE_SCORE = {4.0: 4, 2.0: 2, 1.0: 0, 0.5: -2, 0.25: -4, 0.0: -5}
 DEFENSE_SCORE  = {4.0:-4, 2.0:-2, 1.0: 0, 0.5:  2, 0.25:  4, 0.0:  5}
 
-DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/u/0/d/1frqW2CeHop4o0NP6Ja_TAAPPkGIrvxkeQJBfyxFggyk/htmlview?pli=1#gid=422900446"
+# ==== Starter -> sheet tab (gid) ====
+STARTER_GID = {
+    "Bulbasaur":  "422900446",  # your Bulbasaur tab
+    "Squirtle":   "349723268",  # your Squirtle tab
+    "Charmander": "775328099",  # your Charmander tab
+}
+
+# Single sheet document id, we’ll always override gid based on starter
+DEFAULT_SHEET_DOC = "1frqW2CeHop4o0NP6Ja_TAAPPkGIrvxkeQJBfyxFggyk"
+DEFAULT_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{DEFAULT_SHEET_DOC}/edit#gid=0"
 
 STATE_PATH = "state.json"
 STATE_BAK  = "state.backup.json"
@@ -897,40 +906,6 @@ def build_state_from_web_cached(maxdex: int) -> Dict:
         "last_battle_pick": STATE.get("last_battle_pick", [0,0]),
     }
 
-    return {
-        "moves_db": moves_db,
-        "species_db": species_db,
-        "roster": [],
-        "locks": [],
-        "caught_counts": {},
-        "fulfilled": [],
-        "stone_bag": {},
-        "settings": {
-            "unique_sig": True,
-            "default_level": 5,
-            "hide_spinner": True,
-            "visible_pages": STATE["settings"].get(
-                "visible_pages",
-                {
-                    "pokedex": True,
-                    "battle": True,
-                    "evo": True,
-                    "opponents": False,
-                    "moves": False,
-                    "species": False,
-                    "saveload": True,
-                },
-            ),
-        },
-        "opponents": {
-            "meta": {"sheet_url": "", "last_loaded": ""},
-            "encounters": [],
-            "cleared": [],
-        },
-        "last_battle_pick": [0, 0],
-    }
-
-
 def ensure_species_in_db(name: str) -> bool:
     sk = species_key(name)
     if sk in STATE["species_db"]:
@@ -1111,15 +1086,15 @@ def _filter_rival_encounters(encounters: List[Dict], player_starter: str) -> Lis
     return nonrivals + filtered_rivals
 
 def _reload_opponents_for_current_settings():
-    """Re-fetch opponents from the sheet and apply the Rival filter for the current starter."""
+    """Re-fetch opponents and filter Rival by current starter; switch sheet tab by starter."""
     try:
         url = STATE.get("opponents", {}).get("meta", {}).get("sheet_url") or DEFAULT_SHEET_URL
-        csv_url = parse_sheet_url_to_csv(url)
+        starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
+        csv_url = parse_sheet_url_to_csv(url, preferred_gid=STARTER_GID.get(starter))
         if not csv_url:
             return
         csv_text = fetch_text(csv_url)
         encounters = load_venusaur_sheet(csv_text)
-        starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
         encounters = _filter_rival_encounters(encounters, starter)
         STATE["opponents"]["encounters"] = encounters
         STATE["opponents"]["meta"]["sheet_url"] = url
@@ -1130,18 +1105,20 @@ def _reload_opponents_for_current_settings():
 
 def autoload_opponents_if_empty():
     try:
-        if not STATE["opponents"]["encounters"]:
-            csv_url = parse_sheet_url_to_csv(DEFAULT_SHEET_URL)
-            if not csv_url: return
-            csv_text = fetch_text(csv_url)
-            encounters = load_venusaur_sheet(csv_text)
-            starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
-            encounters = _filter_rival_encounters(encounters, starter)
-            if encounters:
-                STATE["opponents"]["encounters"] = encounters
-                STATE["opponents"]["meta"]["sheet_url"] = DEFAULT_SHEET_URL
-                STATE["opponents"]["meta"]["last_loaded"] = csv_url
-                save_state(STATE)
+        if STATE["opponents"]["encounters"]:
+            return
+        starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
+        csv_url = parse_sheet_url_to_csv(DEFAULT_SHEET_URL, preferred_gid=STARTER_GID.get(starter))
+        if not csv_url:
+            return
+        csv_text = fetch_text(csv_url)
+        encounters = load_venusaur_sheet(csv_text)
+        encounters = _filter_rival_encounters(encounters, starter)
+        if encounters:
+            STATE["opponents"]["encounters"] = encounters
+            STATE["opponents"]["meta"]["sheet_url"] = DEFAULT_SHEET_URL
+            STATE["opponents"]["meta"]["last_loaded"] = csv_url
+            save_state(STATE)
     except Exception:
         pass
 
@@ -1451,7 +1428,7 @@ def finalize_team_unique(roster, K=6, preselected=None):
 def render_settings():
     st.header("Settings")
 
-    # Standalone reset button (no expander)
+    # Reset session
     if st.button("Reset this session (start fresh)", key="reset_session_btn"):
         for k in list(st.session_state.keys()):
             del st.session_state[k]
@@ -1461,10 +1438,9 @@ def render_settings():
             pass
         st.rerun()
     st.caption("Per-user session only. No data is written to the server.")
-
     st.markdown("---")
 
-    # Catch unlimited toggle
+    # Catch unlimited
     cu_cur = bool(STATE.get("settings", {}).get("catch_unlimited", False))
     cu_new = st.checkbox("Catch unlimited Pokémon", value=cu_cur,
                          help="If enabled, the Add list ignores species catch limits.")
@@ -1498,35 +1474,36 @@ def render_settings():
         st.success("Updated: Mew availability")
         do_rerun()
 
-    # Starter selector (controls Rival variants on the opponents page)
+    # Starter selector (controls Rival variants + sheet tab)
     starter_cur = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
     starter_new = st.selectbox(
         "Your starter",
         STARTER_OPTIONS,
         index=STARTER_OPTIONS.index(starter_cur) if starter_cur in STARTER_OPTIONS else 0,
-        help="Used to pick the correct Rival team in the Opponents/Battle pages."
+        help="Used to pick the correct Rival team and sheet tab."
     )
     if starter_new != starter_cur:
         STATE["settings"]["starter"] = starter_new
         save_state(STATE)
-        # Rebuild opponents list to reflect the new Rival variant
         _reload_opponents_for_current_settings()
         st.success(f"Starter set to {starter_new}. Opponents reloaded.")
         do_rerun()
-scope_cur = (STATE.get("settings", {}).get("dex_scope", "151"))
-scope_disp = "Gen 1–3 (386)" if scope_cur == "386" else "Kanto 151"
-scope_pick = st.radio("Pokédex scope", ["Kanto 151", "Gen 1–3 (386)"],
-                      index=["Kanto 151", "Gen 1–3 (386)"].index(scope_disp),
-                      help="Restricts base species and the Add list to 151 or 386. Your roster is kept.")
-scope_new = "386" if scope_pick == "Gen 1–3 (386)" else "151"
-if scope_new != scope_cur:
-    STATE["settings"]["dex_scope"] = scope_new
-    base = build_state_from_web_cached(dex_max())
-    STATE["moves_db"] = base["moves_db"]
-    STATE["species_db"] = base["species_db"]
-    save_state(STATE)
-    st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
-    do_rerun()
+
+    # Pokédex scope (151 vs 386)  ← THIS WAS OUTSIDE BEFORE
+    scope_cur = (STATE.get("settings", {}).get("dex_scope", "151"))
+    scope_disp = "Gen 1–3 (386)" if scope_cur == "386" else "Kanto 151"
+    scope_pick = st.radio("Pokédex scope", ["Kanto 151", "Gen 1–3 (386)"],
+                          index=["Kanto 151", "Gen 1–3 (386)"].index(scope_disp),
+                          help="Restricts base species and the Add list to 151 or 386. Your roster is kept.")
+    scope_new = "386" if scope_pick == "Gen 1–3 (386)" else "151"
+    if scope_new != scope_cur:
+        STATE["settings"]["dex_scope"] = scope_new
+        base = build_state_from_web_cached(dex_max())
+        STATE["moves_db"] = base["moves_db"]
+        STATE["species_db"] = base["species_db"]
+        save_state(STATE)
+        st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
+        do_rerun()
 
 def render_pokedex():
     st.header("Pokédex")
@@ -2354,67 +2331,51 @@ def get_species_total(name: str) -> int:
 
 def render_evo_watch():
     st.header("Evolution Watch")
-    stones = STATE.setdefault('stones', {})
-for _s in stone_items_for_scope():
-    stones.setdefault(_s, 0)
+
+    # Stone list depends on scope (Sun Stone only when scope == 386)
     items = stone_items_for_scope()
-st.subheader("Stone inventory")
-ecols = st.columns(max(1, min(5, len(items))))
-for i, stone in enumerate(items):
-    c = ecols[i % len(ecols)]
-    cur = int(STATE['stones'].get(stone, 0))
-    c.markdown(f"**{stone_with_emoji(stone)}**: {cur}")
-    cc1, cc2 = c.columns(2)
-    if cc1.button("− Remove", key=f"st_dec_{stone.replace(' ', '_')}"):
-        if STATE['stones'].get(stone, 0) > 0:
-            STATE['stones'][stone] -= 1; save_state(STATE); do_rerun()
-    if cc2.button("Add +", key=f"st_inc_{stone.replace(' ', '_')}"):
-        STATE['stones'][stone] = int(STATE['stones'].get(stone, 0)) + 1
-        save_state(STATE); do_rerun()
 
-
-    # Ensure stone inventory exists
+    # Ensure stone inventory in state contains these exact items
     stones = STATE.setdefault('stones', {})
-    for _s in ['Fire Stone', 'Water Stone', 'Thunder Stone', 'Leaf Stone', 'Moon Stone', 'Sun Stone']:
+    for _s in items:
         stones.setdefault(_s, 0)
+    # purge any leftover keys not in scope (keeps state tidy if user switches 386->151)
+    for k in list(stones.keys()):
+        if k not in items:
+            stones.pop(k, None)
 
-    if not STATE.get("roster"):
-        st.info("No Pokémon yet.")
-        return
-
-    # ---- Stone inventory controls
+    # ---- Stone inventory UI
     st.subheader("Stone inventory")
-    ecols = st.columns(5)
-    for i, stone in enumerate(STONE_ITEMS):
-        c = ecols[i % 5]
+    ecols = st.columns(max(1, min(5, len(items))))
+    for i, stone in enumerate(items):
+        c = ecols[i % len(ecols)]
         cur = int(STATE['stones'].get(stone, 0))
         c.markdown(f"**{stone_with_emoji(stone)}**: {cur}")
         cc1, cc2 = c.columns(2)
         if cc1.button("− Remove", key=f"st_dec_{stone.replace(' ', '_')}"):
             if STATE['stones'].get(stone, 0) > 0:
                 STATE['stones'][stone] -= 1
-                save_state(STATE)
-                do_rerun()
+                save_state(STATE); do_rerun()
         if cc2.button("Add +", key=f"st_inc_{stone.replace(' ', '_')}"):
             STATE['stones'][stone] = int(STATE['stones'].get(stone, 0)) + 1
-            save_state(STATE)
-            do_rerun()
+            save_state(STATE); do_rerun()
 
-    # ---- Filters / toggles
+    # Nothing else to do if roster empty
+    if not STATE.get("roster"):
+        st.info("No Pokémon yet.")
+        return
+
+    # ---- Filters
     c1, c2 = st.columns(2)
     show_ready_only = c1.checkbox("Show only 'Ready' evolutions", value=False, key="evo_ready_only")
 
     # Force evolve toggle (ignore requirements; does not consume stones)
-    # Always default OFF for a new session
     st.session_state.setdefault("force_evo", False)
-    force_all = c2.checkbox(
-        "Force evolve (ignore requirements)",
-        key="force_evo"
-    )
+    force_all = c2.checkbox("Force evolve (ignore requirements)", key="force_evo")
 
     rebuild_moves_default = False  # keep current behavior
 
-    # ---- Helpers scoped to this page
+    # ---- Helpers
     def evo_row(mon: dict, opt: dict) -> dict:
         lvl = int(mon.get("level", 1))
         method = opt.get("method")
@@ -2434,6 +2395,7 @@ for i, stone in enumerate(items):
             status_txt = "Ready" if ready else f"Needs Lv {req}"
             badge_class = "b-level"
             req_level_val = req
+
         elif method == "item":
             item = opt.get("item") or "Use item"
             req_txt = stone_with_emoji(item)
@@ -2441,6 +2403,7 @@ for i, stone in enumerate(items):
             ready = have > 0
             status_txt = f"{'Ready' if ready else 'Need'} {item} (you have {have})"
             badge_class = "b-item"
+
         elif method == "trade":
             req_txt = "Trade"
             ready = lvl >= TRADE_EVOLVE_LEVEL
@@ -2473,7 +2436,7 @@ for i, stone in enumerate(items):
             return 2
         return 3
 
-    # Build evolution options per mon
+    # Build rows
     mon_cards = []
     for mon in STATE["roster"]:
         species = mon.get("species", "?")
@@ -2504,6 +2467,7 @@ for i, stone in enumerate(items):
                 deltas.append(max(0, TRADE_EVOLVE_LEVEL - lvl))
         return (2, min(deltas) if deltas else 999)
 
+    # Sort pokemon cards
     mon_cards.sort(
         key=lambda tup: (
             mon_bucket_and_delta(tup[1], tup[2])[0],
@@ -2512,7 +2476,7 @@ for i, stone in enumerate(items):
         )
     )
 
-    # Render list
+    # Render
     ncols = 1
     for i in range(0, len(mon_cards), ncols):
         cols = st.columns(ncols)
@@ -2549,21 +2513,18 @@ for i, stone in enumerate(items):
                     )
                     c5.write(f"{r['from_total']} → {r['to_total']}")
 
-                    # Force evolve honored here
                     ready_now = r["ready"] or force_all
                     btn_label = f"Evolve → {r['to']}" + (" [force]" if force_all and not r["ready"] else "")
-
                     if ready_now:
                         if c6.button(btn_label, key=f"evo_watch_btn_{mon['guid']}_{idx}"):
-                            # Only consume stone when not forcing AND requirement is actually met
-                            if r["method"] == "item" and r.get("item") in stone_items_for_scope() and r["ready"] and not force_all:
+                            # Consume stone only when requirement is met and not forcing
+                            if r["method"] == "item" and r.get("item") in items and r["ready"] and not force_all:
                                 if STATE['stones'].get(r["item"], 0) <= 0:
                                     st.error(f"No {r['item']} left.")
                                     do_rerun()
                                 else:
                                     STATE['stones'][r["item"]] -= 1
                                     save_state(STATE)
-
                             if evolve_mon_record(mon, r["to"], rebuild_moves=rebuild_moves_default):
                                 save_state(STATE)
                                 st.success(f"Evolved into {r['to']}.")
@@ -2572,7 +2533,6 @@ for i, stone in enumerate(items):
                                 st.error("Evolution failed (species not in database).")
                     else:
                         c6.caption("—")
-
 
 def render_saveload():
     st.header("Save / Load")
