@@ -268,6 +268,8 @@ def finalize_team_unique(roster, K=6, preselected=None):
     return final[:K]
 # ===== END PATCH HELPERS =====
 
+PERSIST_TO_DISK = False
+
 
 st.set_page_config(page_title="FR/LG Companion App", layout="wide")
 
@@ -405,8 +407,11 @@ def decode_bytes(data: bytes) -> str:
     return data.decode("utf-8","ignore")
 
 # =============================================================================
-# Persistence
+# Persistence (per-user only; no server writes)
 # =============================================================================
+STATE_PATH = "state.json"
+STATE_BAK  = "state.backup.json"
+
 def _default_state() -> Dict:
     return {
         "moves_db": {},
@@ -416,7 +421,7 @@ def _default_state() -> Dict:
         "caught_counts": {},
         "fulfilled": [],
         "stone_bag": {},
-        "fainted": [],  # NEW: GUIDs of team Pokémon marked as fainted
+        "fainted": [],
         "settings": {
             "unique_sig": True,
             "default_level": 5,
@@ -431,6 +436,7 @@ def _default_state() -> Dict:
     }
 
 def _atomic_write_json(path: str, data: Dict):
+    # Kept for optional future use; not called while PERSIST_TO_DISK=False
     payload = json.dumps(data, indent=2, ensure_ascii=False)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -440,13 +446,9 @@ def _atomic_write_json(path: str, data: Dict):
         fb.write(payload); fb.flush(); os.fsync(fb.fileno())
 
 def save_state(state: Dict):
-    # Ephemeral mode: keep it in-memory per Streamlit session only
-    if EPHEMERAL:
-        import streamlit as st
-        st.session_state["STATE"] = state
+    # No-op unless you deliberately flip the flag
+    if not PERSIST_TO_DISK:
         return
-
-    # Disk mode (only if FRLG_EPHEMERAL=0)
     try:
         _atomic_write_json(STATE_PATH, state)
     except Exception:
@@ -457,16 +459,9 @@ def save_state(state: Dict):
             pass
 
 def load_state() -> Dict:
-    # Ephemeral mode: initialize a fresh state per browser session
-    if EPHEMERAL:
-        import streamlit as st
-        if "STATE" in st.session_state:
-            return st.session_state["STATE"]
-        s = _default_state()
-        st.session_state["STATE"] = s
-        return s
-
-    # Disk mode (only if FRLG_EPHEMERAL=0)
+    # Always start fresh per session when isolation is required
+    if not PERSIST_TO_DISK:
+        return _default_state()
     if os.path.exists(STATE_PATH):
         try:
             with open(STATE_PATH, "rb") as f:
@@ -476,15 +471,31 @@ def load_state() -> Dict:
     if os.path.exists(STATE_BAK):
         try:
             with open(STATE_BAK, "rb") as f:
-                data = json.loads(decode_bytes(f.read()))
-            try:
-                _atomic_write_json(STATE_PATH, data)
-            except Exception:
-                pass
-            return data
+                return json.loads(decode_bytes(f.read()))
         except Exception:
             pass
     return _default_state()
+
+def migrate_state(state: Dict) -> Dict:
+    state.setdefault("stone_bag", {})
+    stg = state.setdefault("settings", {})
+    stg.setdefault("default_level", 5)
+    stg.setdefault("unique_sig", True)
+    stg.setdefault("hide_spinner", True)
+    vis = stg.setdefault("visible_pages", {})
+    for k, v in _default_state()["settings"]["visible_pages"].items():
+        vis.setdefault(k, v)
+    opp = state.setdefault("opponents",{"meta":{"sheet_url":"","last_loaded":""},"encounters":[],"cleared":[]})
+    opp.setdefault("meta",{"sheet_url":"","last_loaded":""})
+    opp.setdefault("encounters",[]); opp.setdefault("cleared",[])
+    state.setdefault("last_battle_pick", [0,0])
+    state.setdefault("fainted", [])
+    try:
+        rguids = {m.get("guid") for m in state.get("roster", [])}
+        state["fainted"] = [g for g in state["fainted"] if g in rguids]
+    except Exception:
+        pass
+    return state
 
 def migrate_state(state: Dict) -> Dict:
     state.setdefault("stone_bag", {})
@@ -508,7 +519,11 @@ def migrate_state(state: Dict) -> Dict:
         pass
     return state
 
-STATE = migrate_state(load_state())
+# Per-session state container
+if "STATE" not in st.session_state:
+    st.session_state["STATE"] = migrate_state(_default_state())
+
+STATE = st.session_state["STATE"]
 
 # =============================================================================
 # Cached web fetchers
@@ -1078,11 +1093,11 @@ def ensure_bootstrap_ready():
         get_showdown_learnsets_cached(); step += 1; bar.progress(int(step/6*100), text="Loaded learnsets")
         get_gen3_data_cached(); step += 1; bar.progress(int(step/6*100), text="Loaded Gen3 levels")
         load_moves_master(); step += 1; bar.progress(int(step/6*100), text="Loaded moves")
-        if not STATE["species_db"]:
+        if not STATE.get("species_db"):
             base = build_kanto_state_from_web_cached()
             STATE["moves_db"] = base["moves_db"]
             STATE["species_db"] = base["species_db"]
-            save_state(STATE)
+            # no save_state here; per-session only
         step += 1; bar.progress(int(step/6*100), text="Species ready")
         autoload_opponents_if_empty(); step += 1; bar.progress(int(step/6*100), text="Opponents ready")
     finally:
@@ -2223,38 +2238,36 @@ def render_evo_watch():
 def render_saveload():
     st.header("Save / Load")
 
-    if EPHEMERAL:
-        st.caption("Session is in-memory only. Download a file to keep a save. Re-import to restore.")
-    else:
-        st.caption("Disk mode is enabled (FRLG_EPHEMERAL=0). Saves go to state.json on the server.")
+    with st.expander("Session controls", expanded=False):
+        c1, c2 = st.columns(2)
+        if c1.button("Reset this session (start fresh)"):
+            # wipe all session keys including STATE, then force re-run
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            try:
+                st.cache_data.clear()
+            except Exception:
+                pass
+            st.rerun()
+        c2.caption("Per-user session only. No data is written to the server.")
 
+    st.markdown("**Download your current progress**")
     st.download_button(
-        "Download current state.json",
-        data=json.dumps(STATE, indent=2),
-        file_name="state.json"
+        "Download save.json",
+        data=json.dumps(STATE, indent=2, ensure_ascii=False),
+        file_name="save.json"
     )
 
-    # Optional: nuke state inside this session immediately
-if st.button("Reset this session (start fresh)"):
-    # Nuke all session keys, including the in-memory STATE
-    for k in list(st.session_state.keys()):
-        del st.session_state[k]
-    # Optional: also clear any cached fetches so everything is pristine
-    try:
-        st.cache_data.clear()
-    except Exception:
-        pass
-    st.rerun()
-
-    up = st.file_uploader("Import state.json", type=["json"])
+    st.markdown("---")
+    st.markdown("**Import a save.json**")
+    up = st.file_uploader("Choose save.json", type=["json"])
     if up is not None:
         try:
             data = json.loads(up.read().decode("utf-8"))
             if not isinstance(data, dict):
-                raise ValueError("Uploaded JSON must be a JSON object")
-            STATE.clear()
-            STATE.update(data)
-            save_state(STATE)  # in ephemeral mode this only updates session memory
+                raise ValueError("Uploaded JSON must be an object")
+            # Replace in-session STATE
+            st.session_state["STATE"] = migrate_state(data)
             st.success("Save loaded into this session.")
             st.rerun()
         except Exception as e:
