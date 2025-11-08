@@ -2222,9 +2222,12 @@ def render_battle():
         pick_mon = st.selectbox("Their Pokémon", mon_labels, index=default_mon_idx)
         apply_pick = st.form_submit_button("Load encounter")
 
-    if apply_pick:
-    STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
-    # no save_state here; it’s a per-session selection and writing to disk slows the click
+    - if apply_pick:
+- STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
+- # no save_state here; it’s a per-session selection and writing to disk slows the click
++ if apply_pick:
++     STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
++     # no save_state here; it’s a per-session selection and writing to disk slows the click
 
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick",[0,0])
     enc = STATE["opponents"]["encounters"][selected_enc_idx]
