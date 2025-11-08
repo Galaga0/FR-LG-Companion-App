@@ -2423,10 +2423,62 @@ def render_battle():
 # Evolution Watch page
 # =============================================================================
 def get_species_total(name: str) -> int:
-    sk = species_key(name)
-    rec = STATE["species_db"].get(sk)
-    return int(rec["total"]) if rec and isinstance(rec.get("total"), int) else 0
+    """
+    Robust total lookup for any in-scope species.
+    Priority:
+      1) If present in species_db, use it.
+      2) Else read from Showdown pokedex (within scope, non-forme), sum baseStats.
+      3) Else on-demand add to species_db via ensure_species_in_db and re-read.
+    """
+    try:
+        sk = species_key(name)
+        rec = STATE.get("species_db", {}).get(sk)
+        if rec and isinstance(rec.get("total"), int):
+            return int(rec["total"])
+    except Exception:
+        pass
 
+    # 2) Direct from Pokédex if possible (handles evolved targets not preloaded)
+    try:
+        dex = get_pokedex_cached() or {}
+        maxdex = dex_max()
+
+        def _dex_rec(n: str):
+            sid = ps_id(n)
+            sd = dex.get(sid)
+            if sd and (sd.get("forme") or not isinstance(sd.get("num"), int)):
+                sd = None
+            if sd and not (1 <= sd["num"] <= maxdex):
+                sd = None
+            if sd:
+                return sd
+            # fallback: scan by normalized name
+            for r in dex.values():
+                if not r: 
+                    continue
+                nm = r.get("name", "")
+                if ps_id(nm) == sid and not r.get("forme") and isinstance(r.get("num"), int) and 1 <= r["num"] <= maxdex:
+                    return r
+            return None
+
+        sd = _dex_rec(name)
+        if sd:
+            base = sd.get("baseStats") or {}
+            if base:
+                return int(sum(v for v in base.values() if isinstance(v, int)))
+    except Exception:
+        pass
+
+    # 3) As a last resort, add it to species_db on demand and try again
+    try:
+        if ensure_species_in_db(name):
+            rec = STATE.get("species_db", {}).get(species_key(name))
+            if rec and isinstance(rec.get("total"), int):
+                return int(rec["total"])
+    except Exception:
+        pass
+
+    return 0
 
 def render_evo_watch():
     st.header("Evolution Watch")
