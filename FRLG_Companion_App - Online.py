@@ -969,31 +969,42 @@ def parse_sheet_url_to_csv(url: str, preferred_gid: Optional[str]=None) -> Optio
 def load_venusaur_sheet(csv_text: str) -> List[Dict]:
     rdr = csv.reader(csv_text.splitlines())
     rows = list(rdr)
+
     encounters_list: List[Dict] = []
     current_enc: Optional[Dict] = None
     name_counts: Dict[str, int] = {}
     rownum = 0
     starting_skipped = False
+
     for r in rows:
         rownum += 1
+
+        # garantér mindst 10 kolonner (trainer, …, 4 moves)
         if len(r) < 10:
             r = r + [""] * (10 - len(r))
-        if not any(cell.strip() for cell in r):
-            continue
-                trainer_cell = clean_invisibles((r[0] or "").strip())
-        poke    = clean_invisibles((r[4] or "").strip())
-        lvl_str = clean_invisibles((r[5] or "").strip())
-        mv_cols = [clean_move_token(c) for c in r[6:10]]
 
-        # Skip sheet's intro/fake rows for non-Bulbasaur tabs too
+        # tom række? spring over
+        if not any((c or "").strip() for c in r):
+            continue
+
+        # faste felter
+        trainer_cell = clean_invisibles((r[0] or "").strip())
+        poke        = clean_invisibles((r[4] or "").strip())
+        lvl_str     = clean_invisibles((r[5] or "").strip())
+        mv_cols     = [clean_move_token(c) for c in r[6:10]]
+
         norm_tr = trainer_cell.lower()
+
+        # skip arkets “Starting …” headerblok (kun første gang vi møder den)
         if not starting_skipped and norm_tr.startswith("starting"):
             starting_skipped = True
             continue
-        if re.fullmatch(r"\s*exp\s*", norm_tr):   # <- filter the EXP header row
+
+        # skip “EXP”/erfarings-overskrifter
+        if re.fullmatch(r"\s*exp\s*", norm_tr):
             continue
-                # end of function:
-    return [enc for enc in encounters_list if enc["mons"] and enc.get("base_label","").lower() != "exp"]
+
+        # ny encounter når der står et trænernavn i kolonne 0
         if trainer_cell:
             base_name = trainer_cell
             name_counts[base_name] = name_counts.get(base_name, 0) + 1
@@ -1001,38 +1012,54 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             label_unique = f"{base_name}{suffix}"
             current_enc = {"label": label_unique, "base_label": base_name, "mons": []}
             encounters_list.append(current_enc)
-        if not current_enc: continue
-        if not poke: continue
+
+        # hvis vi endnu ikke har en aktiv encounter, eller ingen Pokémon i rækken, så videre
+        if not current_enc or not poke:
+            continue
+
+        # level-parsing
         try:
             m = re.findall(r"\d+", lvl_str)
             level = int(m[0]) if m else 1
         except Exception:
             level = 1
+
+        # species record, hent den hvis mangler
         sk = species_key(poke)
         sp = STATE["species_db"].get(sk)
         if not sp:
             if ensure_species_in_db(poke):
                 sp = STATE["species_db"].get(sk)
             if not sp:
+                # ukendt art? spring denne række
                 continue
-        typed_moves: List[Tuple[str,str]] = []
+
+        # moves: kun skadevoldende, respektér FRLG_EXCLUDE_MOVES
+        typed_moves: List[Tuple[str, str]] = []
         for mv in mv_cols:
-            if not mv: continue
+            if not mv:
+                continue
             info = lookup_move(mv)
             if info and not info.get("is_damaging", True):
                 continue
+
+            # filtrer globale FRLG-excludes
+            mv_name_lc = (info.get("name", mv) if info else mv).lower()
+            if mv_name_lc in FRLG_EXCLUDE_MOVES:
+                continue
+
             if info:
-                if str(info.get("name","")).lower() in FRLG_EXCLUDE_MOVES:
-                    continue
-                ensure_move_in_db(info["name"], default_type=normalize_type(info.get("type","")))
-                typed_moves.append((info["name"], normalize_type(info.get("type",""))))
-            else:
-                mtype = normalize_type(STATE["moves_db"].get(norm_key(mv),{}).get("type",""))
+                mtype = normalize_type(info.get("type", ""))
                 if mtype:
-                    if mv.lower() in FRLG_EXCLUDE_MOVES:
-                        continue
+                    ensure_move_in_db(info["name"], default_type=mtype)
+                    typed_moves.append((info["name"], mtype))
+            else:
+                # fallback til lokal moves_db-type hvis vi har den
+                mtype = normalize_type(STATE["moves_db"].get(norm_key(mv), {}).get("type", ""))
+                if mtype:
                     ensure_move_in_db(mv, default_type=mtype)
                     typed_moves.append((mv, mtype))
+
         mon = {
             "species": sp["name"],
             "level": int(level),
@@ -1042,7 +1069,9 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             "total": sp["total"]
         }
         current_enc["mons"].append(mon)
-    return [enc for enc in encounters_list if enc["mons"]]
+
+    # filtrér tomme encounters fra (og evt. dem der utilsigtet hed “exp” som base label)
+    return [enc for enc in encounters_list if enc.get("mons") and enc.get("base_label", "").lower() != "exp"]
 
 @st.cache_data(show_spinner=False)
 def _parse_csv_to_encounters(csv_text: str) -> List[Dict]:
