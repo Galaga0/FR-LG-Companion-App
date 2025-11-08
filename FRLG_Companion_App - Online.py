@@ -1551,25 +1551,24 @@ def render_settings():
         st.success(f"Starter set to {starter_new}. Opponents reloaded.")
         do_rerun()
 
-    # Pokédex scope (151 vs 386)  ← THIS WAS OUTSIDE BEFORE
+        # Pokédex scope (151 vs 386)
     scope_cur = (STATE.get("settings", {}).get("dex_scope", "151"))
     scope_disp = "Gen 1–3 (386)" if scope_cur == "386" else "Kanto 151"
-    scope_pick = st.radio("Pokédex scope", ["Kanto 151", "Gen 1–3 (386)"],
-                          index=["Kanto 151", "Gen 1–3 (386)"].index(scope_disp),
-                          help="Restricts base species and the Add list to 151 or 386. Your roster is kept.")
+    scope_pick = st.radio(
+        "Pokédex scope",
+        ["Kanto 151", "Gen 1–3 (386)"],
+        index=["Kanto 151", "Gen 1–3 (386)"].index(scope_disp),
+        help="Restricts base species and the Add list to 151 or 386. Your roster is kept."
+    )
     scope_new = "386" if scope_pick == "Gen 1–3 (386)" else "151"
     if scope_new != scope_cur:
-    STATE["settings"]["dex_scope"] = scope_new
-    try:
-        st.cache_data.clear()  # nuke cached 151 build
-    except Exception:
-        pass
-    base = build_state_from_web_cached(dex_max())
-    STATE["moves_db"] = base["moves_db"]
-    STATE["species_db"] = base["species_db"]
-    save_state(STATE)
-    st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
-    do_rerun()
+        STATE["settings"]["dex_scope"] = scope_new
+        base = build_state_from_web_cached(dex_max())
+        STATE["moves_db"] = base["moves_db"]
+        STATE["species_db"] = base["species_db"]
+        save_state(STATE)
+        st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
+        do_rerun()
 
 def render_pokedex():
     st.header("Pokédex")
