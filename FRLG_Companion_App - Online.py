@@ -176,10 +176,16 @@ def _lc(x): return _nx(x).lower()
 def _tt(x): return _nx(x).title()
 
 def _lookup_move(name):
+    """
+    Prefer the per-session moves_db, but *always* fall back to the master
+    Play Showdown move record so types like Dark/Fire/etc. are available
+    even if the move wasn't pre-seeded into STATE["moves_db"].
+    """
     try:
-        return STATE.get("moves_db", {}).get(_lc(name))
+        rec = STATE.get("moves_db", {}).get(_lc(name))
     except Exception:
-        return None
+        rec = None
+    return rec or lookup_move(name)
 
 def normalize_moves_list(val):
     out = []
@@ -1353,36 +1359,50 @@ if not STATE.get("species_db"):
 # UI helpers
 # =============================================================================
 def _frlg_allowed_damaging_moves_set() -> set:
+    """
+    Union of *all* damaging FRLG-legal moves across in-scope species:
+    - Level-up (3Lxx)
+    - TM/HM (3M)
+    - Tutor (3T)
+    Plus anything already seen on roster/opponents (so we never drop user data).
+    Cached per dex scope for speed.
+    """
+    cache = STATE.setdefault("_allowed_moves_cache", {})
+    scope_key = f"scope_{dex_max()}"
+    if scope_key in cache:
+        return set(cache[scope_key])
+
     allowed = set()
+
+    # Pull from canonical FRLG resolver (includes 3L, 3M, 3T)
     try:
-        for sp in STATE.get("species_db", {}).values():
-            lmap = sp.get("learnset", {}) or {}
-            for lv, mvlist in lmap.items():
-                seq = mvlist if isinstance(mvlist, list) else [mvlist]
-                for m in seq:
-                    nm = (lookup_move(m) or {}).get("name", clean_move_token(m))
-                    if not nm:
-                        continue
-                    if move_is_damaging(nm):
-                        allowed.add(nm)
+        for sp in (STATE.get("species_db", {}) or {}).values():
+            name = sp.get("name", "")
+            for mv in (legal_moves_for_species_chain(name) or []):
+                nm = (lookup_move(mv) or {}).get("name", clean_move_token(mv))
+                if nm and move_is_damaging(nm):
+                    allowed.add(nm)
     except Exception:
         pass
-    # Also include any damaging moves already saved on roster/opponents to avoid dropping existing data
+
+    # Also include any damaging moves already present on user state
     try:
         for mon in STATE.get("roster", []):
-            for nm, tp in mon.get("moves", []):
-                if move_is_damaging(nm):
+            for nm, _tp in mon.get("moves", []) or []:
+                if nm and move_is_damaging(nm):
                     allowed.add(nm)
     except Exception:
         pass
     try:
-        for enc in STATE.get("opponents", {}).get("encounters", []):
-            for mon in enc.get("mons", []):
-                for nm, tp in mon.get("moves", []):
-                    if move_is_damaging(nm):
+        for enc in STATE.get("opponents", {}).get("encounters", []) or []:
+            for mon in enc.get("mons", []) or []:
+                for nm, _tp in mon.get("moves", []) or []:
+                    if nm and move_is_damaging(nm):
                         allowed.add(nm)
     except Exception:
         pass
+
+    cache[scope_key] = list(sorted(allowed))
     return allowed
 
 def all_damaging_moves_sorted() -> List[str]:
