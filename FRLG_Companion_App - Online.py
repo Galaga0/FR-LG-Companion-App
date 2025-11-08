@@ -309,9 +309,10 @@ st.markdown("""
   color:#111 !important;                 /* default text color inside grid */
 }
 .moves-grid table{border-collapse:collapse; width:100%; table-layout:fixed;}
+/* header stays readable but blends with page */
 .moves-grid thead th{
-  position:sticky; top:0; background:#f9fafb; z-index:1;
-  font-weight:600; color:#111 !important; /* header text visible */
+  position:sticky; top:0; background:transparent; z-index:1;
+  font-weight:600; color:#111 !important;
 }
 .moves-grid th, .moves-grid td{
   padding:6px 10px; font-size:14px;
@@ -320,10 +321,10 @@ st.markdown("""
   border-bottom:1px solid #e5e7eb;
 }
 
-/* body striping only (don’t count header) */
-.moves-grid tbody tr td{ background:#ffffff; }
-.moves-grid tbody tr:nth-of-type(odd) td{ background:#fafafa; }
-.moves-grid tbody tr:hover td{ background:#eef2f7; }
+/* fully transparent table body */
+.moves-grid tbody tr td{ background:transparent !important; }
+.moves-grid tbody tr:nth-of-type(odd) td{ background:transparent !important; }
+.moves-grid tbody tr:hover td{ background:transparent !important; }
 
 .moves-grid .mv-name{font-weight:700;}
 
@@ -352,6 +353,19 @@ def stone_with_emoji(name: str) -> str:
 
 TRADE_EVOLVE_LEVEL = 37
 STONE_ITEMS = ["Fire Stone","Water Stone","Thunder Stone","Leaf Stone","Moon Stone"]
+
+# ==== Player starter -> Rival starter mapping (FR/LG logic) ====
+STARTER_OPTIONS = ["Bulbasaur", "Charmander", "Squirtle"]
+RIVAL_FOR_PLAYER = {
+    "Bulbasaur": "Charmander",
+    "Charmander": "Squirtle",
+    "Squirtle":   "Bulbasaur",
+}
+
+# Lines used to detect which rival variant an encounter belongs to
+BULBA_LINE   = {"bulbasaur","ivysaur","venusaur"}
+CHAR_LINE    = {"charmander","charmeleon","charizard"}
+SQUIRT_LINE  = {"squirtle","wartortle","blastoise"}
 
 # ==== Version exclusives (base species only) ====
 FR_EXCLUSIVE_BASES = {
@@ -486,6 +500,7 @@ def _default_state() -> Dict:
         "fainted": [],
         "settings": {
             "unique_sig": True,
+            "starter": "Bulbasaur",
             "default_level": 5,
             "hide_spinner": True,
             "catch_unlimited": False,
@@ -550,7 +565,8 @@ def migrate_state(state: Dict) -> Dict:
     stg.setdefault("hide_spinner", True)
     stg.setdefault("catch_unlimited", False)
     stg.setdefault("version", "combined")
-    stg.setdefault("allow_mew", True)              # NEW
+    stg.setdefault("allow_mew", True)    
+    stg.setdefault("starter", "Bulbasaur") # NEW
     vis = stg.setdefault("visible_pages", {})
     for k, v in _default_state()["settings"]["visible_pages"].items():
         vis.setdefault(k, v)
@@ -1018,6 +1034,53 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
         current_enc["mons"].append(mon)
     return [enc for enc in encounters_list if enc["mons"]]
 
+def _rival_variant_for_enc(enc: Dict) -> Optional[str]:
+    """Return 'Bulbasaur'|'Charmander'|'Squirtle' if this encounter is a Rival variant, else None."""
+    lbl = (enc.get("base_label") or enc.get("label") or "").lower()
+    if "rival" not in lbl:
+        return None
+    species_keys = {species_key(m.get("species","")) for m in enc.get("mons", [])}
+    if species_keys & BULBA_LINE:  return "Bulbasaur"
+    if species_keys & CHAR_LINE:   return "Charmander"
+    if species_keys & SQUIRT_LINE: return "Squirtle"
+    # fallback: try label text
+    txt = (enc.get("label","") + " " + enc.get("base_label","")).lower()
+    if "bulbasaur" in txt:  return "Bulbasaur"
+    if "charmander" in txt: return "Charmander"
+    if "squirtle" in txt:   return "Squirtle"
+    return None
+
+def _filter_rival_encounters(encounters: List[Dict], player_starter: str) -> List[Dict]:
+    """Keep only Rival encounters that match the correct counter-starter for the chosen player starter."""
+    want = RIVAL_FOR_PLAYER.get(player_starter, "Charmander")
+    out = []
+    for enc in encounters:
+        base = (enc.get("base_label") or "").lower()
+        if "rival" not in base:
+            out.append(enc); continue
+        var = _rival_variant_for_enc(enc)
+        if var is None or var == want:
+            out.append(enc)
+    return out
+
+def _reload_opponents_for_current_settings():
+    """Re-fetch opponents from the sheet and apply the Rival filter for the current starter."""
+    try:
+        url = STATE.get("opponents", {}).get("meta", {}).get("sheet_url") or DEFAULT_SHEET_URL
+        csv_url = parse_sheet_url_to_csv(url)
+        if not csv_url:
+            return
+        csv_text = fetch_text(csv_url)
+        encounters = load_venusaur_sheet(csv_text)
+        starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
+        encounters = _filter_rival_encounters(encounters, starter)
+        STATE["opponents"]["encounters"] = encounters
+        STATE["opponents"]["meta"]["sheet_url"] = url
+        STATE["opponents"]["meta"]["last_loaded"] = csv_url
+        save_state(STATE)
+    except Exception:
+        pass
+
 def autoload_opponents_if_empty():
     try:
         if not STATE["opponents"]["encounters"]:
@@ -1025,6 +1088,8 @@ def autoload_opponents_if_empty():
             if not csv_url: return
             csv_text = fetch_text(csv_url)
             encounters = load_venusaur_sheet(csv_text)
+            starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
+            encounters = _filter_rival_encounters(encounters, starter)
             if encounters:
                 STATE["opponents"]["encounters"] = encounters
                 STATE["opponents"]["meta"]["sheet_url"] = DEFAULT_SHEET_URL
@@ -1364,6 +1429,22 @@ def render_settings():
         STATE["settings"]["allow_mew"] = bool(mew_new)
         save_state(STATE)
         st.success("Updated: Mew availability")
+        do_rerun()
+
+    # Starter selector (controls Rival variants on the opponents page)
+    starter_cur = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
+    starter_new = st.selectbox(
+        "Your starter",
+        STARTER_OPTIONS,
+        index=STARTER_OPTIONS.index(starter_cur) if starter_cur in STARTER_OPTIONS else 0,
+        help="Used to pick the correct Rival team in the Opponents/Battle pages."
+    )
+    if starter_new != starter_cur:
+        STATE["settings"]["starter"] = starter_new
+        save_state(STATE)
+        # Rebuild opponents list to reflect the new Rival variant
+        _reload_opponents_for_current_settings()
+        st.success(f"Starter set to {starter_new}. Opponents reloaded.")
         do_rerun()
 
 def render_pokedex():
