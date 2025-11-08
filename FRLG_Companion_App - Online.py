@@ -2318,56 +2318,61 @@ def render_battle():
         return (best_score, best_move, best_mult), detail
 
     def compute_their_best_vs_me(opp_moves, my_types):
-        detail = []
-        if not opp_moves: return (0, None, 1.0), detail
-        best_score = 9999; best_move = None; best_mult = 1.0
-        for mv, t in opp_moves:
-            mult = get_mult(t, my_types); sc = score_defense(mult)
-            detail.append({"move": mv, "type": t, "mult": mult, "score": sc})
-            if sc < best_score: best_score, best_move, best_mult = sc, mv, mult
-        return (best_score, best_move, best_mult), detail
+    detail = []
+    if not opp_moves:
+        return (0, None, 1.0), detail
+    best_score = 9999; best_move = None; best_mult = 1.0
+    for mv, t in opp_moves:
+        mult = get_mult(t, my_types)
+        sc = score_defense(mult)
+        detail.append({"move": mv, "type": t, "mult": mult, "score": sc})
+        if sc < best_score:
+            best_score, best_move, best_mult = sc, mv, mult
+    return (best_score, best_move, best_mult), detail
 
-        results = []
-    for mon in team:
-        tpair = purge_fairy_types_pair(mon["types"])
-        my_types = (tpair[0], tpair[1])
-        my_total = mon.get("total", 0)
-        sp = STATE["species_db"].get(mon.get("species_key") or species_key(mon["species"]), {})
-        if not sp.get("learnset"):
-            sp["learnset"] = rebuild_learnset_for(sp.get("name", mon["species"]))
-            STATE["species_db"][species_key(sp.get("name", mon["species"]))] = sp
-            save_state(STATE)
+# ← back at the render_battle scope
+results = []                           # <-- moved here
+for mon in team:
+    tpair = purge_fairy_types_pair(mon["types"])
+    my_types = (tpair[0], tpair[1])
+    my_total = mon.get("total", 0)
 
-        my_moves = [(mv, normalize_type(tp) or "") for mv,tp in mon.get("moves", [])]
-        if not my_moves and sp.get("learnset"):
-            learned = last_four_moves_by_level(sp["learnset"], int(mon["level"]))
-            typed = []
-            for m in learned:
-                ct = canonical_typed(m)
-                if ct:
-                    typed.append(ct)
-            my_moves = typed
+    sp = STATE["species_db"].get(mon.get("species_key") or species_key(mon["species"]), {})
+    if not sp.get("learnset"):
+        sp["learnset"] = rebuild_learnset_for(sp.get("name", mon["species"]))
+        STATE["species_db"][species_key(sp.get("name", mon["species"]))] = sp
+        save_state(STATE)
 
-        (off_sc, off_move, off_mult), off_rows = compute_best_offense(my_moves, opp_types)
-        (def_sc, def_move, def_mult), def_rows = compute_their_best_vs_me(opp_pairs, my_types)
-        total = off_sc + def_sc
+    my_moves = [(mv, normalize_type(tp) or "") for mv, tp in (mon.get("moves") or [])]
+    if not my_moves and sp.get("learnset"):
+        learned = last_four_moves_by_level(sp["learnset"], int(mon["level"]))
+        typed = []
+        for m in learned:
+            ct = canonical_typed(m)
+            if ct:
+                typed.append(ct)
+        my_moves = typed
 
-        results.append({
-            "mon": mon,
-            "my_total": my_total,
-            "opp_total": opp_total,
-            "off": (off_sc, off_move, off_mult),
-            "def": (def_sc, def_move, def_mult),
-            "off_rows": off_rows,
-            "def_rows": def_rows,
-            "total_score": total
-        })
+    (off_sc, off_move, off_mult), off_rows = compute_best_offense(my_moves, opp_types)
+    (def_sc, def_move, def_mult), def_rows = compute_their_best_vs_me(opp_pairs, my_types)
+    total = off_sc + def_sc
 
-    # SORTERINGEN SKAL LIGGE UDENFOR for-løkken
-    results.sort(
-        key=lambda r: (r.get("total_score", 0), int((r.get("mon") or {}).get("total", 0))),
-        reverse=True
-    )
+    results.append({
+        "mon": mon,
+        "my_total": my_total,
+        "opp_total": opp_total,
+        "off": (off_sc, off_move, off_mult),
+        "def": (def_sc, def_move, def_mult),
+        "off_rows": off_rows,
+        "def_rows": def_rows,
+        "total_score": total
+    })
+
+# keep the existing sort and rendering that follow
+results.sort(
+    key=lambda r: (r.get("total_score", 0), int((r.get("mon") or {}).get("total", 0))),
+    reverse=True
+)
 
     st.markdown("---")
     st.subheader("Results")
