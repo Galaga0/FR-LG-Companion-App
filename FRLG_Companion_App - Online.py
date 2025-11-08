@@ -2,7 +2,6 @@
 # Global exclude for FRLG moves (intentionally empty — per project rules)
 FRLG_EXCLUDE_MOVES: set[str] = set()
 
-
 # --- FRLG species-line legal moves resolver (wrapper) ---
 def legal_moves_for_species_chain(species_name: str):
     """Return legal move names for a species considering its Gen1 Kanto line (FR/LG).
@@ -150,7 +149,12 @@ from typing import List, Dict, Tuple, Optional
 import json, os, urllib.request, ssl, re, csv, uuid
 from urllib.parse import urlparse, parse_qs
 
-
+# --- Session persistence mode ---
+# Default: ephemeral (no disk writes, fresh state per browser session)
+import os
+EPHEMERAL = bool(int(os.getenv("FRLG_EPHEMERAL", "1")))  # set to "0" only if you WANT disk saves
+STATE_PATH = "state.json"
+STATE_BAK  = "state.backup.json"
 
 # ===== PATCH HELPERS (keep) =====
 def _nx(x): return (x or "").strip()
@@ -436,6 +440,13 @@ def _atomic_write_json(path: str, data: Dict):
         fb.write(payload); fb.flush(); os.fsync(fb.fileno())
 
 def save_state(state: Dict):
+    # Ephemeral mode: keep it in-memory per Streamlit session only
+    if EPHEMERAL:
+        import streamlit as st
+        st.session_state["STATE"] = state
+        return
+
+    # Disk mode (only if FRLG_EPHEMERAL=0)
     try:
         _atomic_write_json(STATE_PATH, state)
     except Exception:
@@ -446,6 +457,16 @@ def save_state(state: Dict):
             pass
 
 def load_state() -> Dict:
+    # Ephemeral mode: initialize a fresh state per browser session
+    if EPHEMERAL:
+        import streamlit as st
+        if "STATE" in st.session_state:
+            return st.session_state["STATE"]
+        s = _default_state()
+        st.session_state["STATE"] = s
+        return s
+
+    # Disk mode (only if FRLG_EPHEMERAL=0)
     if os.path.exists(STATE_PATH):
         try:
             with open(STATE_PATH, "rb") as f:
@@ -456,8 +477,10 @@ def load_state() -> Dict:
         try:
             with open(STATE_BAK, "rb") as f:
                 data = json.loads(decode_bytes(f.read()))
-            try: _atomic_write_json(STATE_PATH, data)
-            except Exception: pass
+            try:
+                _atomic_write_json(STATE_PATH, data)
+            except Exception:
+                pass
             return data
         except Exception:
             pass
@@ -2199,31 +2222,38 @@ def render_evo_watch():
 
 def render_saveload():
     st.header("Save / Load")
-    st.caption("All data lives in 'state.json' next to the app file.")
 
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        if st.button("Force save now"):
-            save_state(STATE)
-            st.success("Saved to state.json")
-    with c2:
-        st.download_button("Download current state.json", data=json.dumps(STATE, indent=2), file_name="state.json")
+    if EPHEMERAL:
+        st.caption("Session is in-memory only. Download a file to keep a save. Re-import to restore.")
+    else:
+        st.caption("Disk mode is enabled (FRLG_EPHEMERAL=0). Saves go to state.json on the server.")
 
-    up = st.file_uploader("Load state.json", type=["json"])
+    st.download_button(
+        "Download current state.json",
+        data=json.dumps(STATE, indent=2),
+        file_name="state.json"
+    )
+
+    # Optional: nuke state inside this session immediately
+    if st.button("Reset this session (start fresh)"):
+        import streamlit as st as _st  # shadow-safe
+        for k in list(_st.session_state.keys()):
+            del _st.session_state[k]
+        _st.rerun()
+
+    up = st.file_uploader("Import state.json", type=["json"])
     if up is not None:
         try:
             data = json.loads(up.read().decode("utf-8"))
             if not isinstance(data, dict):
-                raise ValueError("Uploaded JSON must be an object")
+                raise ValueError("Uploaded JSON must be a JSON object")
             STATE.clear()
             STATE.update(data)
-            save_state(STATE)
-            st.success("Loaded and saved.")
-            do_rerun()
+            save_state(STATE)  # in ephemeral mode this only updates session memory
+            st.success("Save loaded into this session.")
+            st.rerun()
         except Exception as e:
             st.error(f"Failed to load: {e}")
-
-
 
 def evo_badge(label: str, color: str) -> str:
     return f'<span style="display:inline-block;padding:2px 8px;border-radius:9999px;border:1px solid rgba(0,0,0,.1);background:{color};color:white;font-size:12px;">{label}</span>'
