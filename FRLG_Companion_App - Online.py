@@ -2307,21 +2307,31 @@ def render_battle():
                         st.success("Undo applied.")
                         do_rerun()
 
-    # Scoring table
-    def compute_best_offense(my_moves, opp_types):
-        detail = []; best_score = -9999; best_move = None; best_mult = 1.0
-        for mv, t in my_moves:
-            mult = get_mult(t, opp_types); sc = score_offense(mult)
-            detail.append({"move": mv, "type": t, "mult": mult, "score": sc})
-            if sc > best_score: best_score, best_move, best_mult = sc, mv, mult
-        if best_move is None: best_score, best_move, best_mult = 0, None, 1.0
-        return (best_score, best_move, best_mult), detail
+    # --- scoring helpers (inside render_battle, before you build results) ---
 
-    def compute_their_best_vs_me(opp_moves, my_types):
+def compute_best_offense(my_moves, opp_types):
+    detail = []
+    best_score = -9999
+    best_move = None
+    best_mult = 1.0
+    for mv, t in my_moves:
+        mult = get_mult(t, opp_types)
+        sc = score_offense(mult)
+        detail.append({"move": mv, "type": t, "mult": mult, "score": sc})
+        if sc > best_score:
+            best_score, best_move, best_mult = sc, mv, mult
+    if best_move is None:
+        best_score, best_move, best_mult = 0, None, 1.0
+    return (best_score, best_move, best_mult), detail
+
+
+def compute_their_best_vs_me(opp_moves, my_types):
     detail = []
     if not opp_moves:
         return (0, None, 1.0), detail
-    best_score = 9999; best_move = None; best_mult = 1.0
+    best_score = 9999
+    best_move = None
+    best_mult = 1.0
     for mv, t in opp_moves:
         mult = get_mult(t, my_types)
         sc = score_defense(mult)
@@ -2330,8 +2340,11 @@ def render_battle():
             best_score, best_move, best_mult = sc, mv, mult
     return (best_score, best_move, best_mult), detail
 
-# ← back at the render_battle scope
-results = []                           # <-- moved here
+
+# --- now back at render_battle scope (NOT inside a function) ---
+
+results = []
+
 for mon in team:
     tpair = purge_fairy_types_pair(mon["types"])
     my_types = (tpair[0], tpair[1])
@@ -2368,7 +2381,7 @@ for mon in team:
         "total_score": total
     })
 
-# keep the existing sort and rendering that follow
+# existing sort + rendering below stays the same:
 results.sort(
     key=lambda r: (r.get("total_score", 0), int((r.get("mon") or {}).get("total", 0))),
     reverse=True
