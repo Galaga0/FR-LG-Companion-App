@@ -397,10 +397,11 @@ def _counter_line_for(starter_lc: str) -> set:
     return m.get(starter_lc.lower(), CHAR_LINE)
 
 def is_rival_encounter(enc: dict) -> bool:
-    lbl = (enc or {}).get("label", "").lower()
-    # Any consistent cue from your sheet that marks Rival rows will work.
-    # Uses a loose test here so we don’t depend on exact wording.
-    return "rival" in lbl
+    lbl = (enc or {}).get("label", "") or ""
+    base = (enc or {}).get("base_label", "") or ""
+    t = f"{lbl} {base}".lower()
+    # Heuristics: common labels used for the FRLG rival
+    return any(k in t for k in ("rival", "blue", "gary"))
 
 def _filter_rival_encounters(encs: list[dict], starter_name: str) -> list[dict]:
     need = _counter_line_for(starter_name)
@@ -1037,8 +1038,10 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             starting_skipped = True
             continue
 
-        # skip “EXP”/erfarings-overskrifter
-        if re.fullmatch(r"\s*exp\s*", norm_tr):
+        # skip EXP header rows (e.g. "EXP", "Extra EXP", "Experience", with or without punctuation)
+        if re.match(r"^\s*(?:extra\s+)?exp(?:erience)?\b", norm_tr):
+            # ensure nothing attaches to an EXP section header
+            current_enc = None
             continue
 
         # ny encounter når der står et trænernavn i kolonne 0
@@ -1108,7 +1111,14 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
         current_enc["mons"].append(mon)
 
     # filtrér tomme encounters fra (og evt. dem der utilsigtet hed “exp” som base label)
-    return [enc for enc in encounters_list if enc.get("mons") and enc.get("base_label", "").lower() != "exp"]
+    return [
+        enc for enc in encounters_list
+        if enc.get("mons")
+        and not re.match(
+            r"^\s*(?:extra\s+)?exp(?:erience)?\b",
+            (enc.get("base_label","") or "").lower()
+        )
+    ]
 
 @st.cache_data(show_spinner=False)
 def _parse_csv_to_encounters(csv_text: str) -> List[Dict]:
@@ -1132,15 +1142,22 @@ def _build_encounters_for(starter: str, sheet_url: str) -> List[Dict]:
 
     rivals_filtered = _filter_rival_encounters(all_rivals, starter)
 
-    nonrivals = [e for e in enc_main if not is_rival_encounter(e)]
+    # Keep everything from the starter tab (including Rival fights if present)
     by_label = {}
-    for e in nonrivals + rivals_filtered:
+    for e in enc_main:
         by_label[e["label"]] = e
+
+    # Add cross-tab Rival variants only when the label isn't already present
+    for e in rivals_filtered:
+        by_label.setdefault(e["label"], e)
+
     merged = list(by_label.values())
 
-    main_labels = [e["label"] for e in nonrivals]
+    # Preserve starter-tab order first, then any extra rivals we added
+    main_labels = [e["label"] for e in enc_main]
     tail = [e for e in merged if e["label"] not in main_labels]
-    return nonrivals + tail
+    return enc_main + tail
+
 
 def _reload_opponents_for_current_settings():
     try:
