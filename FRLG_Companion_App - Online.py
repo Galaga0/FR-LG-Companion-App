@@ -302,7 +302,7 @@ st.markdown("""
 
 .moves-grid{ display:block; min-width:var(--mv-min); max-width:100%; margin:6px 0; }
 .moves-grid table{ border-collapse:collapse; width:100%; table-layout:fixed; }
-.moves-grid col.mv-name { width:50%; }
+.moves-grid col.mv-name { width:30%; }
 .moves-grid col.mv-type { width:12ch; }
 .moves-grid col.meta    { width:8ch; }
 
