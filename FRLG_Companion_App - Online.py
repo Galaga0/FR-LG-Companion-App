@@ -317,36 +317,44 @@ st.markdown("""
 .head{font-weight:600;color:#111827}
 .small{font-size:12px;color:#6b7280}
 
-/* ---- Moves grid: force readable colors on white cells ---- */
-.moves-grid{
-  display:block; min-width:640px; max-width:100%; margin:6px 0;
-  color:#111 !important;                 /* default text color inside grid */
-}
-.moves-grid table{border-collapse:collapse; width:100%; table-layout:fixed;}
-/* header stays readable but blends with page */
+/* ---- Moves grid: wide name, meta columns pinned right, transparent row lines ---- */
+.moves-grid{ display:block; min-width:640px; max-width:100%; margin:6px 0; }
+.moves-grid table{ border-collapse:collapse; width:100%; table-layout:fixed; }
+
+/* Column widths: name grows, last 3 are compact meta on the far right */
+.moves-grid col.mv-name { width:auto; }
+.moves-grid col.meta    { width:8ch; }
+
 .moves-grid thead th{
   position:sticky; top:0; background:transparent; z-index:1;
-  font-weight:600; color:#111 !important;
+  font-weight:600;
 }
 .moves-grid th, .moves-grid td{
   padding:6px 10px; font-size:14px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  color:#111 !important;                 /* body text visible */
-  border-bottom:1px solid #e5e7eb;
+  border-bottom:1px solid transparent; /* transparent underlines as requested */
 }
 
-/* fully transparent table body */
 .moves-grid tbody tr td{ background:transparent !important; }
 .moves-grid tbody tr:nth-of-type(odd) td{ background:transparent !important; }
 .moves-grid tbody tr:hover td{ background:transparent !important; }
 
-.moves-grid .mv-name{font-weight:700;}
+/* Align last three columns to the right edge */
+.moves-grid td:nth-child(2), .moves-grid th:nth-child(2),
+.moves-grid td:nth-child(3), .moves-grid th:nth-child(3),
+.moves-grid td:nth-child(4), .moves-grid th:nth-child(4){ text-align:right; }
 
-/* Re-assert colors for the Eff. column so they beat the forced text color */
-.moves-grid .eff.good{color:#065f46 !important;}
-.moves-grid .eff.neutral{color:#374151 !important;}
-.moves-grid .eff.bad{color:#7a1f1f !important;}
-.moves-grid .eff.zero{color:#6b7280 !important;}
+.moves-grid .mv-name{ font-weight:700; text-align:left; }
+
+@media (prefers-color-scheme: dark) {
+  .moves-grid th, .moves-grid td { color: #fff !important; }
+  .moves-grid thead th { color: #fff !important; }
+}
+@media (prefers-color-scheme: light) {
+  .moves-grid th, .moves-grid td { color: #111 !important; }
+  .moves-grid thead th { color: #111 !important; }
+}
+
 @media (prefers-color-scheme: dark) {
   .moves-grid th, .moves-grid td { color: #fff !important; }
   .moves-grid thead th { color: #fff !important; }
@@ -365,6 +373,14 @@ TYPES = [
     "Normal","Fire","Water","Electric","Grass","Ice","Fighting","Poison",
     "Ground","Flying","Psychic","Bug","Rock","Ghost","Dragon","Dark","Steel"
 ]
+
+TYPE_EMOJI = {
+    "Normal":"➖","Fire":"🔥","Water":"💧","Electric":"⚡","Grass":"🌿","Ice":"❄️",
+    "Fighting":"🥊","Poison":"☠️","Ground":"⛰️","Flying":"🪽","Psychic":"🔮",
+    "Bug":"🐛","Rock":"🪨","Ghost":"👻","Dragon":"🐉","Dark":"🌑","Steel":"⚙️"
+}
+def type_emoji(t: Optional[str]) -> str:
+    return TYPE_EMOJI.get(normalize_type(t) or "", "❔")
 
 STONE_EMOJI = {
     "Fire Stone": "🔥", "Water Stone": "💧", "Thunder Stone": "⚡",
@@ -1052,6 +1068,48 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
         current_enc["mons"].append(mon)
     return [enc for enc in encounters_list if enc["mons"]]
 
+@st.cache_data(show_spinner=False)
+def _parse_csv_to_encounters(csv_text: str) -> List[Dict]:
+    # Cache the CSV-to-encounters parse. Same output as load_venusaur_sheet.
+    return load_venusaur_sheet(csv_text)
+
+@st.cache_data(show_spinner=False)
+def _build_encounters_for(starter: str, sheet_url: str) -> List[Dict]:
+    """
+    Always load the user's tab for normal encounters,
+    then union-in ALL Rival encounters from ALL three tabs,
+    then filter them to the correct Rival variant for this starter.
+    """
+    # 1) Load the main tab for this starter
+    main_gid = STARTER_GID.get(starter, STARTER_GID["Bulbasaur"])
+    main_csv = parse_sheet_url_to_csv(sheet_url, preferred_gid=main_gid)
+    enc_main = _parse_csv_to_encounters(fetch_text(main_csv)) if main_csv else []
+
+    # 2) Collect ALL Rival encounters from ALL tabs
+    all_rivals = []
+    for s in STARTER_OPTIONS:
+        g = STARTER_GID.get(s)
+        csv_u = parse_sheet_url_to_csv(sheet_url, preferred_gid=g)
+        if not csv_u:
+            continue
+        encs = _parse_csv_to_encounters(fetch_text(csv_u))
+        all_rivals.extend([e for e in encs if "rival" in (e.get("base_label","").lower())])
+
+    # 3) Filter rivals to the correct counter-starter
+    rivals_filtered = _filter_rival_encounters(all_rivals, starter)
+
+    # 4) Return: main non-rivals + filtered rivals (dedup by label)
+    nonrivals = [e for e in enc_main if "rival" not in (e.get("base_label","").lower())]
+    by_label = {}
+    for e in nonrivals + rivals_filtered:
+        by_label[e["label"]] = e
+    merged = list(by_label.values())
+
+    # Stable-ish order: keep main order first, then append filtered rivals that weren't present
+    main_labels = [e["label"] for e in nonrivals]
+    tail = [e for e in merged if e["label"] not in main_labels]
+    return nonrivals + tail
+
 def _rival_variant_for_enc(enc: Dict) -> Optional[str]:
     """Return 'Bulbasaur'|'Charmander'|'Squirtle' if this encounter is a Rival variant, else None."""
     lbl = (enc.get("base_label") or enc.get("label") or "").lower()
@@ -1086,19 +1144,14 @@ def _filter_rival_encounters(encounters: List[Dict], player_starter: str) -> Lis
     return nonrivals + filtered_rivals
 
 def _reload_opponents_for_current_settings():
-    """Re-fetch opponents and filter Rival by current starter; switch sheet tab by starter."""
+    """Reload encounters for current starter; always include correct Rival variant."""
     try:
-        url = STATE.get("opponents", {}).get("meta", {}).get("sheet_url") or DEFAULT_SHEET_URL
+        url = (STATE.get("opponents", {}).get("meta", {}).get("sheet_url") or DEFAULT_SHEET_URL)
         starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
-        csv_url = parse_sheet_url_to_csv(url, preferred_gid=STARTER_GID.get(starter))
-        if not csv_url:
-            return
-        csv_text = fetch_text(csv_url)
-        encounters = load_venusaur_sheet(csv_text)
-        encounters = _filter_rival_encounters(encounters, starter)
+        encounters = _build_encounters_for(starter, url)
         STATE["opponents"]["encounters"] = encounters
         STATE["opponents"]["meta"]["sheet_url"] = url
-        STATE["opponents"]["meta"]["last_loaded"] = csv_url
+        STATE["opponents"]["meta"]["last_loaded"] = f"starter={starter}"
         save_state(STATE)
     except Exception:
         pass
@@ -1108,16 +1161,11 @@ def autoload_opponents_if_empty():
         if STATE["opponents"]["encounters"]:
             return
         starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
-        csv_url = parse_sheet_url_to_csv(DEFAULT_SHEET_URL, preferred_gid=STARTER_GID.get(starter))
-        if not csv_url:
-            return
-        csv_text = fetch_text(csv_url)
-        encounters = load_venusaur_sheet(csv_text)
-        encounters = _filter_rival_encounters(encounters, starter)
+        encounters = _build_encounters_for(starter, DEFAULT_SHEET_URL)
         if encounters:
             STATE["opponents"]["encounters"] = encounters
             STATE["opponents"]["meta"]["sheet_url"] = DEFAULT_SHEET_URL
-            STATE["opponents"]["meta"]["last_loaded"] = csv_url
+            STATE["opponents"]["meta"]["last_loaded"] = f"starter={starter}"
             save_state(STATE)
     except Exception:
         pass
@@ -2069,32 +2117,29 @@ def _render_moves_grid(rows, offense: bool):
     def _mult_emoji(mult: float) -> str:
         return {4.0:"💥", 2.0:"🟢", 1.0:"⚪", 0.5:"🔻", 0.25:"⛔"}.get(float(mult), "")
 
-    longest = max(len((r.get("move") or "")) for r in rows2) if rows2 else 4
-    colgroup = f"<colgroup><col style='width:{longest + 2}ch'><col><col><col></colgroup>"
-
     html = [
         "<div class='moves-grid'><table>",
-        colgroup,
+        "<colgroup><col class='mv-name'><col class='meta'><col class='meta'><col class='meta'></colgroup>",
         "<thead><tr><th>Move</th><th>Type</th><th>Eff.</th><th>Score</th></tr></thead><tbody>"
     ]
     for r in rows2:
         mv = r.get("move") or "—"
-        tp = r.get("type") or "?"
+        tp = normalize_type(r.get("type") or "") or "?"
         mult = float(r.get("mult", 1.0))
         score = int(r.get("score", 0))
 
         eff_txt = (f"{int(mult)}x" if mult in (2.0, 4.0) else ("0x" if mult == 0.0 else f"{mult:g}x"))
-        emoji = _mult_emoji(mult)
-        score_cell = f"{score}x {emoji}".strip()
+        mult_emo = _mult_emoji(mult)
+        type_emo = type_emoji(tp)
 
         star = " ★" if ((offense and score == best_val) or (not offense and score == best_val)) and mv != "—" else ""
         html.append(
-            f"<tr>"
+            "<tr>"
             f"<td class='mv-name'>{mv}{star}</td>"
-            f"<td>{tp}</td>"
+            f"<td>{type_emo}&nbsp;<span class='small'>{tp}</span></td>"
             f"<td>{eff_txt}</td>"
-            f"<td>{score_cell}</td>"
-            f"</tr>"
+            f"<td>{score} {mult_emo}</td>"
+            "</tr>"
         )
     html.append("</tbody></table></div>")
     st.markdown("".join(html), unsafe_allow_html=True)
@@ -2178,7 +2223,8 @@ def render_battle():
         apply_pick = st.form_submit_button("Load encounter")
 
     if apply_pick:
-        STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]; save_state(STATE)
+    STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
+    # no save_state here; it’s a per-session selection and writing to disk slows the click
 
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick",[0,0])
     enc = STATE["opponents"]["encounters"][selected_enc_idx]
