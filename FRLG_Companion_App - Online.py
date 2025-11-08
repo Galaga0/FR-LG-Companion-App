@@ -1250,7 +1250,7 @@ def ensure_bootstrap_ready():
         get_gen3_data_cached(); step += 1; bar.progress(int(step/6*100), text="Loaded Gen3 levels")
         load_moves_master(); step += 1; bar.progress(int(step/6*100), text="Loaded moves")
         if not STATE.get("species_db"):
-            base = build_kanto_state_from_web_cached()
+            base = build_state_from_web_cached(dex_max())
             STATE["moves_db"] = base["moves_db"]
             STATE["species_db"] = base["species_db"]
             # no save_state here; per-session only
