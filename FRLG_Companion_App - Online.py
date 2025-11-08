@@ -2235,11 +2235,16 @@ def render_saveload():
     )
 
     # Optional: nuke state inside this session immediately
-    if st.button("Reset this session (start fresh)"):
-        import streamlit as st as _st  # shadow-safe
-        for k in list(_st.session_state.keys()):
-            del _st.session_state[k]
-        _st.rerun()
+if st.button("Reset this session (start fresh)"):
+    # Nuke all session keys, including the in-memory STATE
+    for k in list(st.session_state.keys()):
+        del st.session_state[k]
+    # Optional: also clear any cached fetches so everything is pristine
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+    st.rerun()
 
     up = st.file_uploader("Import state.json", type=["json"])
     if up is not None:
