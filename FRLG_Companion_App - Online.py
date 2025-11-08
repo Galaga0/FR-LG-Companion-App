@@ -294,42 +294,44 @@ st.markdown("""
   --mv-font: 14px;
   --mv-pad-y: 6px;
   --mv-pad-x: 10px;
-  --grid-underline:#e5e7eb;  /* same color as the other lines */
+  --grid-underline-light: #e5e7eb;   /* light theme grid line */
+  --grid-underline-dark: rgba(255,255,255,0.12); /* dark theme grid line */
+  --arrow-up: #22c55e;   /* green-500 */
+  --arrow-down: #ef4444; /* red-500 */
 }
 
 .moves-grid{ display:block; min-width:var(--mv-min); max-width:100%; margin:6px 0; }
 .moves-grid table{ border-collapse:collapse; width:100%; table-layout:fixed; }
-
-/* Name grows, Type gets extra width, last two are compact */
 .moves-grid col.mv-name { width:auto; }
-.moves-grid col.mv-type { width:12ch; }    /* wider Type column */
+.moves-grid col.mv-type { width:12ch; }
 .moves-grid col.meta    { width:8ch; }
 
 .moves-grid thead th{
-  position:sticky; top:0; background:transparent; z-index:1;
-  font-weight:600;
+  position:sticky; top:0; background:transparent; z-index:1; font-weight:600;
 }
+
 .moves-grid th, .moves-grid td{
   padding:var(--mv-pad-y) var(--mv-pad-x); font-size:var(--mv-font);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  border-bottom:1px solid var(--grid-underline); /* visible underlines */
+  border-bottom:1px solid var(--grid-underline-light) !important;
 }
+
+/* Arrow styling (so we’re not stuck with emoji) */
+.moves-grid .mv-score .up   { color: var(--arrow-up); font-weight:700; }
+.moves-grid .mv-score .down { color: var(--arrow-down); font-weight:700; }
+.moves-grid .small{ opacity:.85; }
 
 .moves-grid tbody tr td{ background:transparent !important; }
 .moves-grid tbody tr:nth-of-type(odd) td{ background:transparent !important; }
 .moves-grid tbody tr:hover td{ background:transparent !important; }
 
-.moves-grid td:nth-child(2), .moves-grid th:nth-child(2),
-.moves-grid td:nth-child(3), .moves-grid th:nth-child(3),
-.moves-grid td:nth-child(4), .moves-grid th:nth-child(4){ text-align:right; }
-
-.moves-grid .mv-name{ font-weight:700; text-align:left; }
-
 @media (prefers-color-scheme: dark) {
-  .moves-grid th, .moves-grid td { color: #fff !important; }
+  .moves-grid th, .moves-grid td { color:#fff !important; }
+  .moves-grid th, .moves-grid td { border-bottom-color: var(--grid-underline-dark) !important; }
 }
 @media (prefers-color-scheme: light) {
-  .moves-grid th, .moves-grid td { color: #111 !important; }
+  .moves-grid th, .moves-grid td { color:#111 !important; }
+  .moves-grid th, .moves-grid td { border-bottom-color: var(--grid-underline-light) !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1091,14 +1093,14 @@ def _build_encounters_for(starter: str, sheet_url: str) -> List[Dict]:
     enc_main = _parse_csv_to_encounters(fetch_text(main_csv)) if main_csv else []
 
     # 2) Collect ALL Rival encounters from ALL tabs
-    all_rivals = []
-    for s in STARTER_OPTIONS:
-        g = STARTER_GID.get(s)
-        csv_u = parse_sheet_url_to_csv(sheet_url, preferred_gid=g)
-        if not csv_u:
-            continue
-        encs = _parse_csv_to_encounters(fetch_text(csv_u))
-        all_rivals.extend([e for e in encs if "rival" in (e.get("base_label","").lower())])
+all_rivals = []
+for s in STARTER_OPTIONS:
+    g = STARTER_GID.get(s)
+    csv_u = parse_sheet_url_to_csv(sheet_url, preferred_gid=g)
+    if not csv_u:
+        continue
+    encs = _parse_csv_to_encounters(fetch_text(csv_u))
+    all_rivals.extend([e for e in encs if is_rival_encounter(e)])
 
     # 3) Filter rivals to the correct counter-starter
     rivals_filtered = _filter_rival_encounters(all_rivals, starter)
@@ -1131,11 +1133,18 @@ def _rival_variant_for_enc(enc: Dict) -> Optional[str]:
     if "squirtle" in txt:   return "Squirtle"
     return None
 
+# Treat an encounter as "Rival" even if the label text is weird
+def is_rival_encounter(enc: Dict) -> bool:
+    lbl = (enc.get("base_label") or enc.get("label") or "").lower()
+    if "rival" in lbl:
+        return True
+    species_keys = {species_key(m.get("species","")) for m in enc.get("mons", [])}
+    return bool(species_keys & (BULBA_LINE | CHAR_LINE | SQUIRT_LINE))
+
 def _filter_rival_encounters(encounters: List[Dict], player_starter: str) -> List[Dict]:
-    """Keep only Rival encounters matching counter-starter; if that removes all Rivals, keep them all."""
     want = RIVAL_FOR_PLAYER.get(player_starter, "Charmander")
-    rivals_in = [e for e in encounters if "rival" in (e.get("base_label","").lower())]
-    nonrivals = [e for e in encounters if "rival" not in (e.get("base_label","").lower())]
+    rivals_in = [e for e in encounters if is_rival_encounter(e)]
+    nonrivals = [e for e in encounters if not is_rival_encounter(e)]
 
     filtered_rivals = []
     for enc in rivals_in:
@@ -1149,7 +1158,6 @@ def _filter_rival_encounters(encounters: List[Dict], player_starter: str) -> Lis
     return nonrivals + filtered_rivals
 
 def _reload_opponents_for_current_settings():
-    """Reload encounters for current starter; always include correct Rival variant."""
     try:
         url = (STATE.get("opponents", {}).get("meta", {}).get("sheet_url") or DEFAULT_SHEET_URL)
         starter = (STATE.get("settings", {}) or {}).get("starter", "Bulbasaur")
@@ -1157,6 +1165,7 @@ def _reload_opponents_for_current_settings():
         STATE["opponents"]["encounters"] = encounters
         STATE["opponents"]["meta"]["sheet_url"] = url
         STATE["opponents"]["meta"]["last_loaded"] = f"starter={starter}"
+        STATE["last_battle_pick"] = [0, 0]  # reset stale indices
         save_state(STATE)
     except Exception:
         pass
@@ -1550,13 +1559,17 @@ def render_settings():
                           help="Restricts base species and the Add list to 151 or 386. Your roster is kept.")
     scope_new = "386" if scope_pick == "Gen 1–3 (386)" else "151"
     if scope_new != scope_cur:
-        STATE["settings"]["dex_scope"] = scope_new
-        base = build_state_from_web_cached(dex_max())
-        STATE["moves_db"] = base["moves_db"]
-        STATE["species_db"] = base["species_db"]
-        save_state(STATE)
-        st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
-        do_rerun()
+    STATE["settings"]["dex_scope"] = scope_new
+    try:
+        st.cache_data.clear()  # nuke cached 151 build
+    except Exception:
+        pass
+    base = build_state_from_web_cached(dex_max())
+    STATE["moves_db"] = base["moves_db"]
+    STATE["species_db"] = base["species_db"]
+    save_state(STATE)
+    st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
+    do_rerun()
 
 def render_pokedex():
     st.header("Pokédex")
@@ -2109,8 +2122,7 @@ def _grade_class(mult: float) -> str:
 def _render_moves_grid(rows, offense: bool):
     rows = [r for r in (rows or []) if (r.get("move") or "").strip() and (r.get("type") or "").strip()]
     if not rows:
-        st.caption("—")
-        return
+        st.caption("—"); return
 
     if offense:
         rows2 = sorted(rows, key=lambda x: (-x["score"], x["move"] or ""))
@@ -2130,22 +2142,24 @@ def _render_moves_grid(rows, offense: bool):
         tp = normalize_type(r.get("type") or "") or "?"
         mult = float(r.get("mult", 1.0))
         score = int(r.get("score", 0))
-
-        # Eff. text just shows the multiplier (2x/4x etc.)
         eff_txt = (f"{int(mult)}x" if mult in (2.0, 4.0) else ("0x" if mult == 0.0 else f"{mult:g}x"))
-
-        # Arrow based strictly on the **score sign** per your rule
-        arrow = "🟢⬆️" if score > 0 else ("🔻" if score < 0 else "•")
-
         type_emo = type_emoji(tp)
         star = " ★" if ((offense and score == best_val) or (not offense and score == best_val)) and mv != "—" else ""
+
+        # HTML arrows; no emojis, no green dot
+        if score > 0:
+            arrow_html = "<span class='up'>&uarr;</span>"
+        elif score < 0:
+            arrow_html = "<span class='down'>&darr;</span>"
+        else:
+            arrow_html = "•"
 
         html.append(
             "<tr>"
             f"<td class='mv-name'>{mv}{star}</td>"
             f"<td>{type_emo}&nbsp;<span class='small'>{tp}</span></td>"
             f"<td>{eff_txt}</td>"
-            f"<td>{score} {arrow}</td>"
+            f"<td class='mv-score'>{score} {arrow_html}</td>"
             "</tr>"
         )
 
@@ -2238,14 +2252,22 @@ def render_battle():
         STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
 
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
-    enc = STATE["opponents"]["encounters"][selected_enc_idx]
-    opmon = enc["mons"][selected_mon_idx]
 
-    # opponent summary
-    t1, t2 = purge_fairy_types_pair(opmon.get("types"))
-    opp_types = (t1, t2)
-    opp_pairs = [(mv, normalize_type(tp) or "") for mv, tp in (opmon.get("moves") or [])]
-    opp_label = enc["label"] + " — " + mon_labels[selected_mon_idx]
+# Clamp encounter index first
+enc_count = len(STATE["opponents"]["encounters"])
+if enc_count == 0:
+    st.error("No encounters loaded."); return
+selected_enc_idx = max(0, min(selected_enc_idx, enc_count - 1))
+
+enc = STATE["opponents"]["encounters"][selected_enc_idx]
+
+# Then clamp mon index
+mon_count = len(enc.get("mons", []))
+if mon_count == 0:
+    st.error("Selected encounter has no Pokémon."); return
+selected_mon_idx = max(0, min(selected_mon_idx, mon_count - 1))
+
+opmon = enc["mons"][selected_mon_idx]
     opp_total = opmon.get("total", 0)
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
     st.caption(
