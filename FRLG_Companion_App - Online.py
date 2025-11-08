@@ -314,6 +314,26 @@ def stone_with_emoji(name: str) -> str:
 TRADE_EVOLVE_LEVEL = 37
 STONE_ITEMS = ["Fire Stone","Water Stone","Thunder Stone","Leaf Stone","Moon Stone"]
 
+# ==== Version exclusives (base species only) ====
+FR_EXCLUSIVE_BASES = {
+    "Ekans","Oddish","Growlithe","Scyther","Electabuzz",
+    "Shellder","Psyduck","Caterpie","Koffing","Mankey"
+}
+LG_EXCLUSIVE_BASES = {
+    "Sandshrew","Bellsprout","Vulpix","Pinsir","Magmar",
+    "Staryu","Slowpoke","Weedle","Grimer","Meowth"
+}
+
+def _version_mode() -> str:
+    return (STATE.get("settings", {}) or {}).get("version", "combined")
+
+def _is_allowed_by_version(base_name: str) -> bool:
+    mode = _version_mode()
+    if mode == "firered":
+        return base_name not in LG_EXCLUSIVE_BASES
+    if mode == "leafgreen":
+        return base_name not in FR_EXCLUSIVE_BASES
+    return True  # combined
 
 OFFENSE_SCORE = {4.0: 4, 2.0: 2, 1.0: 0, 0.5: -2, 0.25: -4, 0.0: -5}
 DEFENSE_SCORE  = {4.0:-4, 2.0:-2, 1.0: 0, 0.5:  2, 0.25:  4, 0.0:  5}
@@ -426,9 +446,12 @@ def _default_state() -> Dict:
             "unique_sig": True,
             "default_level": 5,
             "hide_spinner": True,
+            "catch_unlimited": False,             # NEW
+            "version": "combined",                # NEW: combined | firered | leafgreen
             "visible_pages": {
                 "pokedex": True, "battle": True, "evo": True,
-                "opponents": False, "moves": False, "species": False, "saveload": True
+                "opponents": False, "moves": False, "species": False,
+                "saveload": True, "settings": True                    # NEW
             }
         },
         "opponents": {"meta":{"sheet_url":"","last_loaded":""},"encounters":[], "cleared":[]},
@@ -482,36 +505,19 @@ def migrate_state(state: Dict) -> Dict:
     stg.setdefault("default_level", 5)
     stg.setdefault("unique_sig", True)
     stg.setdefault("hide_spinner", True)
+    stg.setdefault("catch_unlimited", False)           # NEW
+    stg.setdefault("version", "combined")              # NEW
     vis = stg.setdefault("visible_pages", {})
     for k, v in _default_state()["settings"]["visible_pages"].items():
         vis.setdefault(k, v)
-    opp = state.setdefault("opponents",{"meta":{"sheet_url":"","last_loaded":""},"encounters":[],"cleared":[]})
-    opp.setdefault("meta",{"sheet_url":"","last_loaded":""})
-    opp.setdefault("encounters",[]); opp.setdefault("cleared",[])
-    state.setdefault("last_battle_pick", [0,0])
-    state.setdefault("fainted", [])
-    try:
-        rguids = {m.get("guid") for m in state.get("roster", [])}
-        state["fainted"] = [g for g in state["fainted"] if g in rguids]
-    except Exception:
-        pass
-    return state
 
-def migrate_state(state: Dict) -> Dict:
-    state.setdefault("stone_bag", {})
-    stg = state.setdefault("settings", {})
-    stg.setdefault("default_level", 5)
-    stg.setdefault("unique_sig", True)
-    stg.setdefault("hide_spinner", True)
-    vis = stg.setdefault("visible_pages", {})
-    for k, v in _default_state()["settings"]["visible_pages"].items():
-        vis.setdefault(k, v)
-    opp = state.setdefault("opponents",{"meta":{"sheet_url":"","last_loaded":""},"encounters":[],"cleared":[]})
-    opp.setdefault("meta",{"sheet_url":"","last_loaded":""})
-    opp.setdefault("encounters",[]); opp.setdefault("cleared",[])
+    opp = state.setdefault("opponents", {"meta":{"sheet_url":"","last_loaded":""},"encounters":[],"cleared":[]})
+    opp.setdefault("meta", {"sheet_url":"","last_loaded":""})
+    opp.setdefault("encounters", [])
+    opp.setdefault("cleared", [])
+
     state.setdefault("last_battle_pick", [0,0])
     state.setdefault("fainted", [])
-    # Optional cleanup (keeps only GUIDs that still exist in roster)
     try:
         rguids = {m.get("guid") for m in state.get("roster", [])}
         state["fainted"] = [g for g in state["fainted"] if g in rguids]
@@ -1265,6 +1271,47 @@ def finalize_team_unique(roster, K=6, preselected=None):
         final.append(mon)
         if len(final) == K: return final
     return final[:K]
+
+def render_settings():
+    st.header("Settings")
+
+    # 1) Reset session moved here
+    with st.expander("Session controls", expanded=False):
+        c1, c2 = st.columns([1,4])
+        if c1.button("Reset this session (start fresh)", key="reset_session_btn"):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            try:
+                st.cache_data.clear()
+            except Exception:
+                pass
+            st.rerun()
+        c2.caption("Per-user session only. No data is written to the server.")
+
+    st.markdown("---")
+
+    # 2) Catch unlimited toggle
+    cu_cur = bool(STATE.get("settings", {}).get("catch_unlimited", False))
+    cu_new = st.checkbox("Catch unlimited Pokémon", value=cu_cur, help="If enabled, the Add list ignores species catch limits.")
+    if cu_new != cu_cur:
+        STATE.setdefault("settings", {})["catch_unlimited"] = bool(cu_new)
+        save_state(STATE)
+        st.success("Updated: Catch unlimited Pokémon")
+        do_rerun()
+
+    # 3) Version selector
+    vmap_disp2key = {"Combined": "combined", "FireRed": "firered", "LeafGreen": "leafgreen"}
+    vmap_key2disp = {v:k for k,v in vmap_disp2key.items()}
+    cur_mode = STATE.get("settings", {}).get("version", "combined")
+    disp_default = vmap_key2disp.get(cur_mode, "Combined")
+    disp_pick = st.radio("Game version filter", ["Combined","FireRed","LeafGreen"], index=["Combined","FireRed","LeafGreen"].index(disp_default))
+    new_mode = vmap_disp2key[disp_pick]
+    if new_mode != cur_mode:
+        STATE["settings"]["version"] = new_mode
+        save_state(STATE)
+        st.success(f"Version set to {disp_pick}")
+        do_rerun()
+
 def render_pokedex():
     st.header("Pokédex")
 
@@ -1729,10 +1776,14 @@ def render_pokedex():
 def available_species_entries() -> List[Tuple[str, str]]:
     """Return (name, label) options for the Add Pokémon list.
     - Only base Kanto species (hide evolutions).
-    - Collapse roster counts to base.
-    - Show "(x/2)" only for true 2-of-2 species.
-    - Sort alphabetically.
+    - Version filter (Combined/FireRed/LeafGreen).
+    - If 'Catch unlimited' ON, ignore count-based gating.
+    - Show 'Name (Trade Piece)' for 2-of-2 species (no counts).
+    - Keep existing '[trade reward]' tag.
+    - Sorted alphabetically.
     """
+    catch_unlimited = bool(STATE.get("settings", {}).get("catch_unlimited", False))
+
     # Collapse roster to base
     rcounts: Dict[str, int] = {}
     for m in STATE.get("roster", []):
@@ -1747,38 +1798,49 @@ def available_species_entries() -> List[Tuple[str, str]]:
         if not name:
             continue
 
-        # Base-only: skip evolutions (e.g., Kadabra, Dragonite)
+        # Base-only: skip evolutions
         try:
             if base_key_for(name) != species_key(name):
                 continue
         except Exception:
-            # Fallback to evolves_from if mapping not available
             if sp.get("evolves_from"):
                 continue
+
+        # Version filter on base display name
+        if not _is_allowed_by_version(name):
+            continue
 
         base_sk = base_key_for(name)
         req = int(required_catches_for_species(name))
         have = int(rcounts.get(base_sk, 0))
 
-        # 2-of-2 visibility with "ever" rule
-        if req == 2:
-            if base_sk in ever:
-                visible = (have == 0)
-            else:
-                visible = (have < 2)
+        # Visibility rules
+        if catch_unlimited:
+            visible = True
         else:
-            visible = (have < req)
+            if req == 2:
+                if base_sk in ever:
+                    visible = (have == 0)
+                else:
+                    visible = (have < 2)
+            else:
+                visible = (have < req)
 
         if not visible:
             continue
 
+        # Label: Trade Piece for 2-of-2 species, no numeric counters
+        is_trade_piece = (req == 2)
+        base_label = f"{name} (Trade Piece)" if is_trade_piece else name
+
+        # Preserve trade-reward tag
         tag = " [trade reward]" if base_sk in TRADE_REWARD_SPECIES else ""
-        # Only show counts for 2-of-2 species
-        label = f"{name} ({have}/2){tag}" if req == 2 else f"{name}{tag}"
+        label = f"{base_label}{tag}"
         entries.append((name, label))
 
     entries.sort(key=lambda t: t[0])
     return entries
+    
 def _format_battle_result_line(name: str, your_total: int, opp_total: int, offense: int, defense: int, total: int) -> str:
     """Minimal battle line per user spec: no move parentheticals."""
     return f"{name} — (Your Total: {your_total} vs Opp Total: {opp_total}) — Offense: {offense} | Defense: {defense} → Total {total}"
@@ -2238,19 +2300,6 @@ def render_evo_watch():
 def render_saveload():
     st.header("Save / Load")
 
-    with st.expander("Session controls", expanded=False):
-        c1, c2 = st.columns(2)
-        if c1.button("Reset this session (start fresh)"):
-            # wipe all session keys including STATE, then force re-run
-            for k in list(st.session_state.keys()):
-                del st.session_state[k]
-            try:
-                st.cache_data.clear()
-            except Exception:
-                pass
-            st.rerun()
-        c2.caption("Per-user session only. No data is written to the server.")
-
     st.markdown("**Download your current progress**")
     st.download_button(
         "Download save.json",
@@ -2266,7 +2315,6 @@ def render_saveload():
             data = json.loads(up.read().decode("utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("Uploaded JSON must be an object")
-            # Replace in-session STATE
             st.session_state["STATE"] = migrate_state(data)
             st.success("Save loaded into this session.")
             st.rerun()
@@ -2289,6 +2337,7 @@ PAGE_REGISTRY = [
     ("battle", "Battle", render_battle),
     ("evo", "Evolution Watch", render_evo_watch),
     ("save", "Save / Load", render_saveload),
+    ("settings", "Settings", render_settings),   # NEW
 ]
 
 def _run_router():
