@@ -2225,20 +2225,25 @@ def render_battle():
 
         apply_pick = st.form_submit_button("Load encounter")
 
-# handle the selection OUTSIDE the form block
-if apply_pick:
-    STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
+    # handle the selection OUTSIDE the form block (still inside render_battle)
+    if apply_pick:
+        STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
 
-selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
-enc = STATE["opponents"]["encounters"][selected_enc_idx]
-opmon = enc["mons"][selected_mon_idx]
-    t1, t2 = purge_fairy_types_pair(opmon["types"])
+    selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
+    enc = STATE["opponents"]["encounters"][selected_enc_idx]
+    opmon = enc["mons"][selected_mon_idx]
+
+    # opponent summary
+    t1, t2 = purge_fairy_types_pair(opmon.get("types"))
     opp_types = (t1, t2)
-    opp_pairs = [(mv, normalize_type(tp) or "") for mv,tp in opmon["moves"]]
+    opp_pairs = [(mv, normalize_type(tp) or "") for mv, tp in (opmon.get("moves") or [])]
     opp_label = enc["label"] + " — " + mon_labels[selected_mon_idx]
     opp_total = opmon.get("total", 0)
-    moves_str = ", ".join([f"{n}({t})" for n,t in opp_pairs]) if opp_pairs else "—"
-    st.caption(f"Opponent: **{opp_label}** | Types: {t1 or '—'} / {t2 or '—'} | Total: {opp_total} | Moves: {moves_str}")
+    moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
+    st.caption(
+        f"Opponent: **{opp_label}** | Types: {t1 or '—'} / {t2 or '—'} | "
+        f"Total: {opp_total} | Moves: {moves_str}"
+    )
 
     b1, b2 = st.columns(2)
     if b1.button("✅ Beat Pokémon (remove just this one)"):
@@ -2347,7 +2352,10 @@ opmon = enc["mons"][selected_mon_idx]
             "off": (off_sc, off_move, off_mult), "def": (def_sc, def_move, def_mult),
             "off_rows": off_rows, "def_rows": def_rows, "total_score": total
         })
-        results.sort(key=lambda r: (r.get("total_score",0), int((r.get("mon",{}) or {}).get("total",0))), reverse=True)
+            results.sort(
+        key=lambda r: (r.get("total_score", 0), int((r.get("mon", {}) or {}).get("total", 0))),
+        reverse=True
+    )
     st.markdown("---")
     st.subheader("Results")
     for r in results:
