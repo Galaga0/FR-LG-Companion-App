@@ -292,6 +292,7 @@ st.markdown("""
 :root {
   --mv-min: 640px;
   --mv-font: 14px;
+  --mv-name-scale: 0.5;
   --mv-pad-y: 6px;
   --mv-pad-x: 10px;
   --grid-underline-light: #e5e7eb;   /* light theme grid line */
@@ -320,6 +321,7 @@ st.markdown("""
 .moves-grid .mv-score .up   { color: var(--arrow-up); font-weight:700; }
 .moves-grid .mv-score .down { color: var(--arrow-down); font-weight:700; }
 .moves-grid .small{ opacity:.85; }
+.moves-grid td:first-child { font-size: calc(var(--mv-font) * var(--mv-name-scale)); }
 
 .moves-grid tbody tr td{ background:transparent !important; }
 .moves-grid tbody tr:nth-of-type(odd) td{ background:transparent !important; }
@@ -378,6 +380,45 @@ RIVAL_FOR_PLAYER = {
 BULBA_LINE   = {"bulbasaur","ivysaur","venusaur"}
 CHAR_LINE    = {"charmander","charmeleon","charizard"}
 SQUIRT_LINE  = {"squirtle","wartortle","blastoise"}
+
+# ==== Rival helpers (FR/LG) ====
+def _starter_to_line(starter_lc: str) -> set:
+    s = starter_lc.lower()
+    if s == "bulbasaur": return BULBA_LINE
+    if s == "charmander": return CHAR_LINE
+    if s == "squirtle": return SQUIRT_LINE
+    return set()
+
+def _counter_line_for(starter_lc: str) -> set:
+    # Counter is the rival’s line
+    m = {
+        "bulbasaur": CHAR_LINE,
+        "charmander": SQUIRT_LINE,
+        "squirtle": BULBA_LINE,
+    }
+    return m.get(starter_lc.lower(), CHAR_LINE)
+
+def is_rival_encounter(enc: dict) -> bool:
+    lbl = (enc or {}).get("label", "").lower()
+    # Any consistent cue from your sheet that marks Rival rows will work.
+    # Uses a loose test here so we don’t depend on exact wording.
+    return "rival" in lbl
+
+def _filter_rival_encounters(encs: list[dict], starter_name: str) -> list[dict]:
+    need = _counter_line_for(starter_name)
+    out = []
+    for e in encs or []:
+        mons = e.get("mons", [])
+        # keep this rival encounter if **every** starter-line mon inside matches the counter line
+        keep = False
+        for m in mons:
+            n = (m.get("species") or "").lower().replace("♀","f").replace("♂","m")
+            if n in need:
+                keep = True
+                break
+        if keep:
+            out.append(e)
+    return out
 
 # ==== Version exclusives (base species only) ====
 FR_EXCLUSIVE_BASES = {
@@ -858,6 +899,7 @@ def build_state_from_web_cached(maxdex: int) -> Dict:
         moves_db[norm_key(rec["name"])] = {
             "name": rec["name"],
             "type": normalize_type(rec.get("type", "")),
+            "meta": {"species_scope": str(maxdex)}
         }
 
     species_db = {}
@@ -1082,17 +1124,10 @@ def _parse_csv_to_encounters(csv_text: str) -> List[Dict]:
 
 @st.cache_data(show_spinner=False)
 def _build_encounters_for(starter: str, sheet_url: str) -> List[Dict]:
-    """
-    Always load the user's tab for normal encounters,
-    then union-in ALL Rival encounters from ALL three tabs,
-    then filter them to the correct Rival variant for this starter.
-    """
-    # 1) Load the main tab for this starter
     main_gid = STARTER_GID.get(starter, STARTER_GID["Bulbasaur"])
     main_csv = parse_sheet_url_to_csv(sheet_url, preferred_gid=main_gid)
     enc_main = _parse_csv_to_encounters(fetch_text(main_csv)) if main_csv else []
 
-    # 2) Collect ALL Rival encounters from ALL tabs
     all_rivals = []
     for s in STARTER_OPTIONS:
         g = STARTER_GID.get(s)
@@ -1102,17 +1137,14 @@ def _build_encounters_for(starter: str, sheet_url: str) -> List[Dict]:
         encs = _parse_csv_to_encounters(fetch_text(csv_u))
         all_rivals.extend([e for e in encs if is_rival_encounter(e)])
 
-    # 3) Filter rivals to the correct counter-starter
     rivals_filtered = _filter_rival_encounters(all_rivals, starter)
 
-    # 4) Return: main non-rivals + filtered rivals (dedup by label)
     nonrivals = [e for e in enc_main if not is_rival_encounter(e)]
     by_label = {}
     for e in nonrivals + rivals_filtered:
         by_label[e["label"]] = e
     merged = list(by_label.values())
 
-    # Stable-ish order: keep main order first, then append filtered rivals that weren't present
     main_labels = [e["label"] for e in nonrivals]
     tail = [e for e in merged if e["label"] not in main_labels]
     return nonrivals + tail
@@ -1287,6 +1319,7 @@ if not STATE.get("species_db"):
     base = build_state_from_web_cached(dex_max())
     STATE["moves_db"] = base["moves_db"]
     STATE["species_db"] = base["species_db"]
+    STATE["meta"] = base.get("meta", {"species_scope": str(dex_max())})  # <<< ADD THIS LINE
 # =============================================================================
 # UI helpers
 # =============================================================================
@@ -1526,9 +1559,11 @@ def render_settings():
         base = build_state_from_web_cached(dex_max())
         STATE["moves_db"] = base["moves_db"]
         STATE["species_db"] = base["species_db"]
+        STATE["meta"] = base.get("meta", {"species_scope": str(dex_max())})
         save_state(STATE)
         st.success(f"Pokédex scope set to {scope_pick}. Reloaded species database.")
         do_rerun()
+
 
 def render_pokedex():
     st.header("Pokédex")
@@ -2000,6 +2035,14 @@ def available_species_entries() -> List[Tuple[str, str]]:
     - Preserve '[trade reward]' tag.
     - Hide Mew from Add list when disabled in Settings.
     """
+        # Guard: rebuild if species DB scope mismatches current setting
+    want = str(dex_max())
+    if (STATE.get("meta", {}).get("species_scope") != want):
+        base = build_state_from_web_cached(dex_max())
+        STATE["moves_db"] = base["moves_db"]
+        STATE["species_db"] = base["species_db"]
+        STATE["meta"] = base.get("meta", {"species_scope": want})
+        
     catch_unlimited = bool(STATE.get("settings", {}).get("catch_unlimited", False))
 
     # Collapse roster to base
@@ -2056,7 +2099,7 @@ def available_species_entries() -> List[Tuple[str, str]]:
         base_label = f"{name} (Trade Piece)" if is_trade_piece else name
 
         # Preserve trade-reward tag
-        tag = " [trade reward]" if base_sk in TRADE_REWARD_SPECIES else ""
+        tag = " (trade reward)" if base_sk in TRADE_REWARD_SPECIES else ""
         label = f"{base_label}{tag}"
         entries.append((name, label))
 
