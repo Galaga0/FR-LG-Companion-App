@@ -2389,6 +2389,35 @@ def render_battle():
                         st.success("Undo applied.")
                         do_rerun()
 
+        # === special type-math exceptions (fixed/set-HP, OHKO): ignore resist/weak; keep immunities ===
+    # Gen 3 set: Seismic Toss, Night Shade, Dragon Rage, SonicBoom, Psywave, Super Fang, Endeavor,
+    #            Fissure, Guillotine, Horn Drill, Sheer Cold
+    IMMUNITY_ONLY_MOVES = {
+        "seismictoss","nightshade","dragonrage","sonicboom","psywave",
+        "superfang","endeavor","fissure","guillotine","horndrill","sheercold"
+    }
+
+    def _immunity_only_mult(move_type: str, defender_types: tuple) -> float:
+        """Apply ONLY immunities (0x) from the type chart; ignore resist/weak."""
+        mt = normalize_type(move_type) or "Normal"
+        for dt in defender_types:
+            if not dt:
+                continue
+            d = normalize_type(dt) or "Normal"
+            if TYPE_CHART.get(mt, {}).get(d, 1.0) == 0.0:
+                return 0.0
+        return 1.0
+
+    def _type_mult_for_move(move_name: str, move_type: str, defender_types: tuple) -> float:
+        """
+        Fixed/set-HP and OHKO moves ignore type effectiveness except immunities.
+        Everything else uses normal type chart.
+        """
+        if move_name:
+            if move_id(move_name) in IMMUNITY_ONLY_MOVES:
+                return _immunity_only_mult(move_type, defender_types)
+        return get_mult(move_type, defender_types)
+
     # --- scoring helpers ---
     def compute_best_offense(my_moves, opp_types):
         detail = []
@@ -2396,7 +2425,7 @@ def render_battle():
         best_move = None
         best_mult = 1.0
         for mv, t in my_moves:
-            mult = get_mult(t, opp_types)
+            mult = _type_mult_for_move(mv, t, opp_types)
             sc = score_offense(mult)
             detail.append({"move": mv, "type": t, "mult": mult, "score": sc})
             if sc > best_score:
@@ -2413,7 +2442,7 @@ def render_battle():
         best_move = None
         best_mult = 1.0
         for mv, t in opp_moves:
-            mult = get_mult(t, my_types)
+            mult = _type_mult_for_move(mv, t, my_types)
             sc = score_defense(mult)
             detail.append({"move": mv, "type": t, "mult": mult, "score": sc})
             if sc < best_score:
@@ -2641,14 +2670,19 @@ def render_evo_watch():
             "to_total": to_total,
         }
 
-    def method_bucket(r: dict) -> int:
-        if r["ready"]:
-            return 0
-        if r["method"] == "item":
-            return 1
-        if r["method"] in ("level", "trade"):
-            return 2
-        return 3
+        def method_bucket(r: dict) -> int:
+            # Ready rows first, with item before level/trade
+            if r["ready"] and r["method"] == "item":
+                return 0
+            if r["ready"] and r["method"] in ("level", "trade"):
+                return 1
+            # Not ready: items next, then level/trade, then manual
+            if r["method"] == "item":
+                return 2
+            if r["method"] in ("level", "trade"):
+                return 3
+            return 4
+
 
     # Build rows
     mon_cards = []
@@ -2666,20 +2700,44 @@ def render_evo_watch():
         )
         mon_cards.append((mon, rows, lvl))
 
-    def mon_bucket_and_delta(rows: list, lvl: int) -> tuple[int, int]:
-        has_ready = any(r["ready"] and r["method"] in ("level", "trade", "item") for r in rows)
-        if has_ready:
-            return (0, 0)
-        has_item = any(r["method"] == "item" for r in rows)
-        if has_item:
-            return (1, 0)
-        deltas = []
-        for r in rows:
-            if r["method"] == "level":
-                deltas.append(max(0, r["req_level"] - lvl))
-            elif r["method"] == "trade":
-                deltas.append(max(0, TRADE_EVOLVE_LEVEL - lvl))
-        return (2, min(deltas) if deltas else 999)
+        def mon_bucket_and_delta(rows: list, lvl: int) -> tuple[int, int]:
+            """
+            Global card ordering:
+              0: Ready via item (stones)  → delta = 0
+              1: Ready via level/trade    → delta = required level (trade uses TRADE_EVOLVE_LEVEL)
+              2: Not ready via item       → delta = 0
+              3: Not ready via level/trade→ delta = levels remaining (min)
+              4: Everything else
+            """
+            # Ready buckets
+            if any(r["ready"] and r["method"] == "item" for r in rows):
+                return (0, 0)
+
+            ready_levels = []
+            for r in rows:
+                if r["ready"] and r["method"] in ("level", "trade"):
+                    req = r.get("req_level") if r["method"] == "level" else TRADE_EVOLVE_LEVEL
+                    if isinstance(req, int) and req > 0:
+                        ready_levels.append(req)
+            if ready_levels:
+                return (1, min(ready_levels))
+
+            # Not ready: item first
+            if any(r["method"] == "item" for r in rows):
+                return (2, 0)
+
+            # Not ready: level/trade next by distance
+            deltas = []
+            for r in rows:
+                if r["method"] == "level" and isinstance(r.get("req_level"), int):
+                    deltas.append(max(0, r["req_level"] - lvl))
+                elif r["method"] == "trade":
+                    deltas.append(max(0, TRADE_EVOLVE_LEVEL - lvl))
+            if deltas:
+                return (3, min(deltas))
+
+            return (4, 0)
+
 
     # Sort pokemon cards
     mon_cards.sort(
