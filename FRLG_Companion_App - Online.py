@@ -1905,7 +1905,7 @@ def render_pokedex():
 
 
             if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
-                new_lv = int(st.session_state.get(lvl_key, cur_lv))
+                new_lv = int(st.session_state.get(lvl_key, mon.get("level", 1)))
                 mon["level"] = new_lv
                 st.session_state[lvl_key] = new_lv  # keep the number input in sync
                 save_state(STATE)
@@ -2014,7 +2014,7 @@ def render_pokedex():
 
 
             if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
-                new_lv = int(st.session_state.get(lvl_key, cur_lv))
+                new_lv = int(st.session_state.get(lvl_key, mon.get("level", 1)))
                 mon["level"] = new_lv
                 st.session_state[lvl_key] = new_lv
                 save_state(STATE)
@@ -2670,141 +2670,57 @@ def render_evo_watch():
             "to_total": to_total,
         }
 
-        def method_bucket(r: dict) -> int:
-            # Ready rows first, with item before level/trade
-            if r["ready"] and r["method"] == "item":
-                return 0
+            # --- Evo sorting helpers (must be top-level in render_evo_watch, not nested) ---
+    def method_bucket(r: dict) -> int:
+        # Ready rows first, with item before level/trade
+        if r["ready"] and r["method"] == "item":
+            return 0
+        if r["ready"] and r["method"] in ("level", "trade"):
+            return 1
+        # Not ready: items next, then level/trade, then manual
+        if r["method"] == "item":
+            return 2
+        if r["method"] in ("level", "trade"):
+            return 3
+        return 4
+
+    def mon_bucket_and_delta(rows: list, lvl: int) -> tuple[int, int]:
+        """
+        Global card ordering:
+          0: Ready via item (stones)  → delta = 0
+          1: Ready via level/trade    → delta = required level (trade uses TRADE_EVOLVE_LEVEL)
+          2: Not ready via item       → delta = 0
+          3: Not ready via level/trade→ delta = levels remaining (min)
+          4: Everything else
+        """
+        # Ready buckets
+        if any(r["ready"] and r["method"] == "item" for r in rows):
+            return (0, 0)
+
+        ready_levels = []
+        for r in rows:
             if r["ready"] and r["method"] in ("level", "trade"):
-                return 1
-            # Not ready: items next, then level/trade, then manual
-            if r["method"] == "item":
-                return 2
-            if r["method"] in ("level", "trade"):
-                return 3
-            return 4
+                req = r.get("req_level") if r["method"] == "level" else TRADE_EVOLVE_LEVEL
+                if isinstance(req, int) and req > 0:
+                    ready_levels.append(req)
+        if ready_levels:
+            return (1, min(ready_levels))
 
+        # Not ready: item first
+        if any(r["method"] == "item" for r in rows):
+            return (2, 0)
 
-    # Build rows
-    mon_cards = []
-    for mon in STATE["roster"]:
-        species = mon.get("species", "?")
-        lvl = int(mon.get("level", 1))
-        opts = available_evos_for(species) or []
-        rows = [evo_row(mon, o) for o in opts]
-        rows.sort(
-            key=lambda r: (
-                method_bucket(r),
-                0 if r["method"] == "item" else (r["req_level"] if r["method"] in ("level", "trade") else 999),
-                r["to"],
-            )
-        )
-        mon_cards.append((mon, rows, lvl))
+        # Not ready: level/trade next by distance
+        deltas = []
+        for r in rows:
+            if r["method"] == "level" and isinstance(r.get("req_level"), int):
+                deltas.append(max(0, r["req_level"] - lvl))
+            elif r["method"] == "trade":
+                deltas.append(max(0, TRADE_EVOLVE_LEVEL - lvl))
+        if deltas:
+            return (3, min(deltas))
 
-        def mon_bucket_and_delta(rows: list, lvl: int) -> tuple[int, int]:
-            """
-            Global card ordering:
-              0: Ready via item (stones)  → delta = 0
-              1: Ready via level/trade    → delta = required level (trade uses TRADE_EVOLVE_LEVEL)
-              2: Not ready via item       → delta = 0
-              3: Not ready via level/trade→ delta = levels remaining (min)
-              4: Everything else
-            """
-            # Ready buckets
-            if any(r["ready"] and r["method"] == "item" for r in rows):
-                return (0, 0)
-
-            ready_levels = []
-            for r in rows:
-                if r["ready"] and r["method"] in ("level", "trade"):
-                    req = r.get("req_level") if r["method"] == "level" else TRADE_EVOLVE_LEVEL
-                    if isinstance(req, int) and req > 0:
-                        ready_levels.append(req)
-            if ready_levels:
-                return (1, min(ready_levels))
-
-            # Not ready: item first
-            if any(r["method"] == "item" for r in rows):
-                return (2, 0)
-
-            # Not ready: level/trade next by distance
-            deltas = []
-            for r in rows:
-                if r["method"] == "level" and isinstance(r.get("req_level"), int):
-                    deltas.append(max(0, r["req_level"] - lvl))
-                elif r["method"] == "trade":
-                    deltas.append(max(0, TRADE_EVOLVE_LEVEL - lvl))
-            if deltas:
-                return (3, min(deltas))
-
-            return (4, 0)
-
-
-    # Sort pokemon cards
-    mon_cards.sort(
-        key=lambda tup: (
-            mon_bucket_and_delta(tup[1], tup[2])[0],
-            mon_bucket_and_delta(tup[1], tup[2])[1],
-            tup[0]["species"].lower(),
-        )
-    )
-
-    # Render
-    ncols = 1
-    for i in range(0, len(mon_cards), ncols):
-        cols = st.columns(ncols)
-        for j in range(ncols):
-            if i + j >= len(mon_cards):
-                break
-            mon, rows, lvl = mon_cards[i + j]
-            species = mon.get("species", "?")
-            use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
-
-            with cols[j].container(border=True):
-                st.markdown(f"**{species} • Lv{lvl}**")
-                if not use_rows:
-                    st.caption("No evolutions listed or none match filter.")
-                    continue
-
-                h1, h2, h3, h4, h5, h6 = st.columns([3, 2, 2, 3, 2, 2])
-                h1.markdown("**Target**")
-                h2.markdown("**Method**")
-                h3.markdown("**Requirement**")
-                h4.markdown("**Status**")
-                h5.markdown("**Totals**")
-                h6.markdown("**Action**")
-
-                for idx, r in enumerate(use_rows):
-                    c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 2, 3, 2, 2])
-                    c1.write(r["to"])
-                    method_pretty = {"level": "Level", "item": "Use Item", "trade": "Trade", "manual": "Manual"}[r["method"]]
-                    c2.markdown(f"<span class='badge {r['badge']}'>{method_pretty}</span>", unsafe_allow_html=True)
-                    c3.write(r["req_txt"])
-                    c4.markdown(
-                        f"<span class='badge {'b-ready' if r['ready'] else 'b-wait'}'>{r['status']}</span>",
-                        unsafe_allow_html=True,
-                    )
-                    c5.write(f"{r['from_total']} → {r['to_total']}")
-
-                    ready_now = r["ready"] or force_all
-                    btn_label = f"Evolve → {r['to']}" + (" [force]" if force_all and not r["ready"] else "")
-                    if ready_now:
-                        if c6.button(btn_label, key=f"evo_watch_btn_{mon['guid']}_{idx}"):
-                            # Consume stone only when requirement is met and not forcing
-                            if r["method"] == "item" and r.get("item") in items and r["ready"] and not force_all:
-                                if STATE['stones'].get(r["item"], 0) <= 0:
-                                    st.error(f"No {r['item']} left.")
-                                    do_rerun()
-                                else:
-                                    STATE['stones'][r["item"]] -= 1
-                                    save_state(STATE)
-                            if evolve_mon_record(mon, r["to"], rebuild_moves=rebuild_moves_default):
-                                save_state(STATE)
-                                st.success(f"Evolved into {r['to']}.")
-                                do_rerun()
-                            else:
-                                st.error("Evolution failed (species not in database).")
-                    else:
-                        c6.caption("—")
+        return (4, 0)
 
 def render_saveload():
     st.header("Save / Load")
