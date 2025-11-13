@@ -2715,7 +2715,7 @@ def render_evo_watch():
             elif m == "trade":
                 ready_lvls.append(int(TRADE_EVOLVE_LEVEL))
             else:
-            ready_lvls.append(999)
+                ready_lvls.append(999)
 
         if ready_lvls:
             return (0, min(ready_lvls))
