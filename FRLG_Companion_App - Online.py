@@ -1890,16 +1890,19 @@ def render_pokedex():
             locked_new = c_lock.checkbox("🔒", value=is_locked, key=f"lock_{gid}", help="Lock to team")
 
             lvl_key = f"lvl_{gid}"
-            cur_lv = int(st.session_state.get(lvl_key, mon.get("level", 1)))
+            # Initialize once, then let session_state own the value
+            if lvl_key not in st.session_state:
+                st.session_state[lvl_key] = int(mon.get("level", 1))
+
             c_lv.number_input(
                 "Lv",
                 min_value=1,
                 max_value=100,
-                value=cur_lv,
                 step=1,
-                key=lvl_key,
+                key=lvl_key,                 # no 'value=' here
                 label_visibility="collapsed",
-            )
+             )
+
 
             if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
                 new_lv = int(st.session_state.get(lvl_key, cur_lv))
@@ -1997,16 +2000,18 @@ def render_pokedex():
             locked_new = c_lock.checkbox("🔒", value=is_locked, key=f"lock_{gid}", help="Lock to team")
 
             lvl_key = f"lvl_{gid}"
-            cur_lv = int(st.session_state.get(lvl_key, mon.get("level", 1)))
+            if lvl_key not in st.session_state:
+                st.session_state[lvl_key] = int(mon.get("level", 1))
+
             c_lv.number_input(
                 "Lv",
                 min_value=1,
                 max_value=100,
-                value=cur_lv,
                 step=1,
                 key=lvl_key,
                 label_visibility="collapsed",
             )
+
 
             if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
                 new_lv = int(st.session_state.get(lvl_key, cur_lv))
