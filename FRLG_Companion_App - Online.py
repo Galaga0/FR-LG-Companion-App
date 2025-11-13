@@ -2696,18 +2696,41 @@ def render_evo_watch():
         mon_cards.append((mon, rows, lvl))
 
     def mon_bucket_and_delta(rows: list, lvl: int) -> tuple[int, int]:
-        has_ready = any(r["ready"] and r["method"] in ("level", "trade", "item") for r in rows)
-        if has_ready:
-            return (0, 0)
-        has_item = any(r["method"] == "item" for r in rows)
-        if has_item:
+        """
+        Bucket for card ordering + numeric tie-break:
+          0 = READY (sorted by earliest required level; items treated as 0, trade as TRADE_EVOLVE_LEVEL)
+          1 = Not ready, item-based
+          2 = Not ready, level/trade (sorted by fewest levels remaining)
+        """
+        # READY: order by earliest required "level"
+        ready_lvls = []
+        for r in rows:
+            if not r.get("ready"):
+                continue
+            m = r.get("method")
+            if m == "item":
+                ready_lvls.append(0)  # stones have no level; push to top of READY
+            elif m == "level":
+                ready_lvls.append(int(r.get("req_level") or 0))
+            elif m == "trade":
+                ready_lvls.append(int(TRADE_EVOLVE_LEVEL))
+            else:
+                ready_lvls.append(999)
+       if ready_lvls:
+            return (0, min(ready_lvls))
+
+        # Not ready, item-based comes next (no level delta concept)
+        if any(r.get("method") == "item" for r in rows):
             return (1, 0)
+
+        # Not ready, level/trade: fewest levels remaining first
         deltas = []
         for r in rows:
-            if r["method"] == "level":
-                deltas.append(max(0, r["req_level"] - lvl))
-            elif r["method"] == "trade":
-                deltas.append(max(0, TRADE_EVOLVE_LEVEL - lvl))
+            m = r.get("method")
+            if m == "level":
+                deltas.append(max(0, int(r.get("req_level") or 0) - lvl))
+            elif m == "trade":
+                deltas.append(max(0, int(TRADE_EVOLVE_LEVEL) - lvl))
         return (2, min(deltas) if deltas else 999)
 
     # Sort pokemon cards (keeps the new behind-the-scenes ordering)
