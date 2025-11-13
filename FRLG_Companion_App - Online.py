@@ -2604,8 +2604,7 @@ def render_evo_watch():
             save_state(STATE); do_rerun()
 
     # Nothing else to do if roster empty
-    roster = list(STATE.get("roster", []))
-    if not roster:
+    if not STATE.get("roster"):
         st.info("No Pokémon yet.")
         return
 
@@ -2619,7 +2618,7 @@ def render_evo_watch():
 
     rebuild_moves_default = False  # keep current behavior
 
-    # ---- Helper to build one evo row for a mon+option
+    # ---- Helpers
     def evo_row(mon: dict, opt: dict) -> dict:
         lvl = int(mon.get("level", 1))
         method = opt.get("method")
@@ -2669,151 +2668,117 @@ def render_evo_watch():
             "item": item,
             "from_total": from_total,
             "to_total": to_total,
-            "delta": (to_total - from_total),
         }
 
-    # --- Sort helpers (card order across the whole page) ---
     def method_bucket(r: dict) -> int:
-        # Ready rows first, with item before level/trade
-        if r["ready"] and r["method"] == "item":
+        if r["ready"]:
             return 0
-        if r["ready"] and r["method"] in ("level", "trade"):
-            return 1
-        # Not ready: items next, then level/trade, then manual
         if r["method"] == "item":
-            return 2
+            return 1
         if r["method"] in ("level", "trade"):
-            return 3
-        return 4
+            return 2
+        return 3
+
+    # Build rows
+    mon_cards = []
+    for mon in STATE["roster"]:
+        species = mon.get("species", "?")
+        lvl = int(mon.get("level", 1))
+        opts = available_evos_for(species) or []
+        rows = [evo_row(mon, o) for o in opts]
+        rows.sort(
+            key=lambda r: (
+                method_bucket(r),
+                0 if r["method"] == "item" else (r["req_level"] if r["method"] in ("level", "trade") else 999),
+                r["to"],
+            )
+        )
+        mon_cards.append((mon, rows, lvl))
 
     def mon_bucket_and_delta(rows: list, lvl: int) -> tuple[int, int]:
-        """
-        Global card ordering:
-          0: Ready via item (stones)  → delta = 0
-          1: Ready via level/trade    → delta = required level (trade uses TRADE_EVOLVE_LEVEL)
-          2: Not ready via item       → delta = 0
-          3: Not ready via level/trade→ delta = levels remaining (min)
-          4: Everything else
-        """
-        # Ready via item
-        if any(r["ready"] and r["method"] == "item" for r in rows):
+        has_ready = any(r["ready"] and r["method"] in ("level", "trade", "item") for r in rows)
+        if has_ready:
             return (0, 0)
-
-        # Ready via level/trade
-        ready_levels = []
-        for r in rows:
-            if r["ready"] and r["method"] in ("level", "trade"):
-                req = r.get("req_level") if r["method"] == "level" else TRADE_EVOLVE_LEVEL
-                if isinstance(req, int) and req > 0:
-                    ready_levels.append(req)
-        if ready_levels:
-            return (1, min(ready_levels))
-
-        # Not ready: item first
-        if any(r["method"] == "item" for r in rows):
-            return (2, 0)
-
-        # Not ready: level/trade next by distance
+        has_item = any(r["method"] == "item" for r in rows)
+        if has_item:
+            return (1, 0)
         deltas = []
         for r in rows:
-            if r["method"] == "level" and isinstance(r.get("req_level"), int):
+            if r["method"] == "level":
                 deltas.append(max(0, r["req_level"] - lvl))
             elif r["method"] == "trade":
                 deltas.append(max(0, TRADE_EVOLVE_LEVEL - lvl))
-        if deltas:
-            return (3, min(deltas))
+        return (2, min(deltas) if deltas else 999)
 
-        return (4, 0)
+    # Sort pokemon cards (keeps the new behind-the-scenes ordering)
+    mon_cards.sort(
+        key=lambda tup: (
+            mon_bucket_and_delta(tup[1], tup[2])[0],
+            mon_bucket_and_delta(tup[1], tup[2])[1],
+            tup[0]["species"].lower(),
+        )
+    )
 
-    # ---- Build rows per mon
-    cards = []
-    for mon in roster:
-        species = mon.get("species", "?")
-        lvl = int(mon.get("level", 1))
-        t = purge_fairy_types_pair(mon.get("types") or [])
-        t1, t2 = t[0], t[1]
-        opts = available_evos_for(species) or []
+    # Render
+    ncols = 1
+    for i in range(0, len(mon_cards), ncols):
+        cols = st.columns(ncols)
+        for j in range(ncols):
+            if i + j >= len(mon_cards):
+                break
+            mon, rows, lvl = mon_cards[i + j]
+            species = mon.get("species", "?")
+            use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
 
-        rows = [evo_row(mon, opt) for opt in opts] if opts else []
-        if show_ready_only and not force_all:
-            rows = [r for r in rows if r["ready"]]
+            with cols[j].container(border=True):
+                st.markdown(f"**{species} • Lv{lvl}**")
+                if not use_rows:
+                    st.caption("No evolutions listed or none match filter.")
+                    continue
 
-        if not rows:
-            # Hide mons with no evolutions or nothing matching filter
-            continue
+                h1, h2, h3, h4, h5, h6 = st.columns([3, 2, 2, 3, 2, 2])
+                h1.markdown("**Target**")
+                h2.markdown("**Method**")
+                h3.markdown("**Requirement**")
+                h4.markdown("**Status**")
+                h5.markdown("**Totals**")
+                h6.markdown("**Action**")
 
-        # Sort the evo options inside each card
-        rows.sort(key=lambda r: (method_bucket(r), -r["delta"], r["to"]))
+                for idx, r in enumerate(use_rows):
+                    c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 2, 3, 2, 2])
+                    c1.write(r["to"])
+                    method_pretty = {"level": "Level", "Use item": "Use Item", "item": "Use Item", "trade": "Trade", "manual": "Manual"}[r["method"]]
+                    # ensure consistent label if earlier code sets method to 'item'
+                    if r["method"] == "item":
+                        method_pretty = "Use Item"
+                    c2.markdown(f"<span class='badge {r['badge']}'>{method_pretty}</span>", unsafe_allow_html=True)
+                    c3.write(r["req_txt"])
+                    c4.markdown(
+                        f"<span class='badge {'b-ready' if r['ready'] else 'b-wait'}'>{r['status']}</span>",
+                        unsafe_allow_html=True,
+                    )
+                    c5.write(f"{r['from_total']} → {r['to_total']}")
 
-        # Card ordering across the page
-        bucket, delta_metric = mon_bucket_and_delta(rows, lvl)
-        best_to_total = max(r["to_total"] for r in rows if isinstance(r.get("to_total"), int))
-        stat_delta = best_to_total - int(mon.get("total", 0))
-
-        cards.append({
-            "bucket": bucket,
-            "delta_metric": delta_metric,
-            "stat_delta": stat_delta,
-            "level": lvl,
-            "species": species,
-            "types": (t1, t2),
-            "rows": rows,
-            "guid": mon.get("guid"),
-            "mon_ref": mon,
-        })
-
-    # If filter nuked everything, say so
-    if not cards:
-        st.info("No evolutions match the current filter.")
-        return
-
-    # Sort cards and render
-    cards.sort(key=lambda c: (c["bucket"], c["delta_metric"], -c["stat_delta"], -c["level"], c["species"]))
-
-    for card in cards:
-        mon = card["mon_ref"]
-        species = card["species"]
-        lvl = card["level"]
-        t1, t2 = card["types"]
-        total = int(mon.get("total", 0))
-        best_delta = card["stat_delta"]
-        d_txt = f"+{best_delta}" if best_delta > 0 else str(best_delta)
-
-        header = f"**{species}** — Lv{lvl} — {t1 or '—'}/{t2 or '—'} — Total {total} → Δ {d_txt}"
-        st.markdown(header)
-
-        # One card per mon, with its options inside
-        with st.expander("Show options", expanded=True):
-            for r in card["rows"]:
-                badge = evo_status_badge(r["status"])
-                line = (
-                    f"{badge}  → **{r['to']}** "
-                    f"(to Total {r['to_total']} | Δ {('+' if r['delta']>0 else '')}{r['delta']}) "
-                    f"• Requirement: {r['req_txt']}"
-                )
-                st.markdown(line, unsafe_allow_html=True)
-
-                # Evolve button logic
-                btn_key = f"evo_btn_{mon.get('guid')}_{ps_id(r['to'])}"
-                can_click = force_all or r["ready"]
-
-                if st.button(f"Evolve to {r['to']}", key=btn_key, disabled=not can_click):
-                    # Consume stone (unless forcing) then evolve
-                    if r["method"] == "item" and not force_all:
-                        item = r.get("item")
-                        have = int(STATE['stones'].get(item, 0))
-                        if have <= 0:
-                            st.warning(f"You don't have a {item}.")
-                            continue
-                        STATE['stones'][item] = have - 1
-
-                    # Do evolution
-                    if evolve_mon_record(mon, r["to"], rebuild_moves=rebuild_moves_default):
-                        save_state(STATE)
-                        st.success(f"Evolved into {r['to']}.")
-                        do_rerun()
+                    ready_now = r["ready"] or force_all
+                    btn_label = f"Evolve → {r['to']}" + (" [force]" if force_all and not r["ready"] else "")
+                    if ready_now:
+                        if c6.button(btn_label, key=f"evo_watch_btn_{mon['guid']}_{idx}"):
+                            # Consume stone only when requirement is met and not forcing
+                            if r["method"] == "item" and r.get("item") in items and r["ready"] and not force_all:
+                                if STATE['stones'].get(r["item"], 0) <= 0:
+                                    st.error(f"No {r['item']} left.")
+                                    do_rerun()
+                                else:
+                                    STATE['stones'][r["item"]] -= 1
+                                    save_state(STATE)
+                            if evolve_mon_record(mon, r["to"], rebuild_moves=rebuild_moves_default):
+                                save_state(STATE)
+                                st.success(f"Evolved into {r['to']}.")
+                                do_rerun()
+                            else:
+                                st.error("Evolution failed (species not in database).")
                     else:
-                        st.error("Evolution failed.")
+                        c6.caption("—")
 
 def render_saveload():
     st.header("Save / Load")
