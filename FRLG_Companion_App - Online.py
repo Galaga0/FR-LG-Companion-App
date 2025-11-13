@@ -2698,7 +2698,7 @@ def render_evo_watch():
     def mon_bucket_and_delta(rows: list, lvl: int) -> tuple[int, int]:
         """
         Bucket for card ordering + numeric tie-break:
-          0 = READY (sorted by earliest required level; items treated as 0, trade as TRADE_EVOLVE_LEVEL)
+          0 = READY (sorted by earliest required level; items=0, trade=TRADE_EVOLVE_LEVEL)
           1 = Not ready, item-based
           2 = Not ready, level/trade (sorted by fewest levels remaining)
         """
@@ -2709,14 +2709,15 @@ def render_evo_watch():
                 continue
             m = r.get("method")
             if m == "item":
-                ready_lvls.append(0)  # stones have no level; push to top of READY
+                ready_lvls.append(0)  # stones have no level; top of READY
             elif m == "level":
                 ready_lvls.append(int(r.get("req_level") or 0))
             elif m == "trade":
                 ready_lvls.append(int(TRADE_EVOLVE_LEVEL))
             else:
-                ready_lvls.append(999)
-       if ready_lvls:
+            ready_lvls.append(999)
+
+        if ready_lvls:
             return (0, min(ready_lvls))
 
         # Not ready, item-based comes next (no level delta concept)
@@ -2728,10 +2729,12 @@ def render_evo_watch():
         for r in rows:
             m = r.get("method")
             if m == "level":
-                deltas.append(max(0, int(r.get("req_level") or 0) - lvl))
+                deltas.append(max(0, int(r.get("req_level") or 0) - int(lvl)))
             elif m == "trade":
-                deltas.append(max(0, int(TRADE_EVOLVE_LEVEL) - lvl))
+                deltas.append(max(0, int(TRADE_EVOLVE_LEVEL) - int(lvl)))
+
         return (2, min(deltas) if deltas else 999)
+
 
     # Sort pokemon cards (keeps the new behind-the-scenes ordering)
     mon_cards.sort(
