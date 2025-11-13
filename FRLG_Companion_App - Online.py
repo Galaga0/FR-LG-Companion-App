@@ -1612,13 +1612,28 @@ def render_pokedex():
 
     with left:
         with st.expander("Sync Pokédex levels", expanded=True):
-            lvl = st.number_input("Set Pokédex level to", 1, 100, int(STATE.get("settings",{}).get("default_level", 20)))
+            lvl = st.number_input(
+                "Set Pokédex level to",
+                1, 100,
+                int(STATE.get("settings", {}).get("default_level", 20)),
+                key="sync_all_level_target",
+            )
             if st.button("Apply", key="sync_levels"):
+                new_lvl = int(lvl)
+
+                # Update model levels
                 for m0 in STATE.get("roster", []):
-                    m0["level"] = int(lvl)
-                STATE.setdefault('settings', {})['default_level'] = int(lvl)
+                    m0["level"] = new_lvl
+                    # Keep the UI controls in sync immediately
+                    lvl_key0 = f"lvl_{m0.get('guid')}"
+                    st.session_state[lvl_key0] = new_lvl
+
+                # Also update the default used for new additions/prefill
+                STATE.setdefault("settings", {})["default_level"] = new_lvl
                 save_state(STATE)
-                st.success("Levels synced.")
+
+                st.success(f"Levels synced to {new_lvl}.")
+                do_rerun()
 
     with right:
         with st.expander("Add Pokémon to Pokédex", expanded=True):
@@ -1887,7 +1902,9 @@ def render_pokedex():
             )
 
             if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
-                mon["level"] = int(st.session_state.get(lvl_key, cur_lv))
+                new_lv = int(st.session_state.get(lvl_key, cur_lv))
+                mon["level"] = new_lv
+                st.session_state[lvl_key] = new_lv  # keep the number input in sync
                 save_state(STATE)
                 st.success("Level updated.")
                 do_rerun()
@@ -1992,7 +2009,9 @@ def render_pokedex():
             )
 
             if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
-                mon["level"] = int(st.session_state.get(lvl_key, cur_lv))
+                new_lv = int(st.session_state.get(lvl_key, cur_lv))
+                mon["level"] = new_lv
+                st.session_state[lvl_key] = new_lv
                 save_state(STATE)
                 st.success("Level updated.")
                 do_rerun()
