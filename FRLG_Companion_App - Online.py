@@ -328,7 +328,7 @@ TYPE_EMOJI = {
 }
 
 # Global sprite size (px) so every sprite uses the same visual size
-SPRITE_SIZE = 64
+SPRITE_SIZE = 72
 
 def type_emoji(t: Optional[str]) -> str:
     return TYPE_EMOJI.get(normalize_type(t) or "", "❔")
