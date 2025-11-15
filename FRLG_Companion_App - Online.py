@@ -2869,9 +2869,11 @@ def render_saveload():
                 raise ValueError("Uploaded JSON must be an object")
             st.session_state["STATE"] = migrate_state(data)
             st.success("Save loaded into this session.")
+            # Stay on Save/Load after import
+            st.session_state["_page_id"] = "saveload"
+            STATE.setdefault("ui", {})["page"] = "saveload"
+            save_state(STATE)
             st.rerun()
-        except Exception as e:
-            st.error(f"Failed to load: {e}")
 
 def evo_badge(label: str, color: str) -> str:
     return f'<span style="display:inline-block;padding:2px 8px;border-radius:9999px;border:1px solid rgba(0,0,0,.1);background:{color};color:white;font-size:12px;">{label}</span>'
@@ -2885,23 +2887,40 @@ def evo_status_badge(txt: str) -> str:
 # Sidebar routing
 # =============================================================================
 PAGE_REGISTRY = [
-    ("pokedex", "Pokédex", render_pokedex),
-    ("battle", "Battle", render_battle),
-    ("evo", "Evolution Watch", render_evo_watch),
-    ("save", "Save / Load", render_saveload),
-    ("settings", "Settings", render_settings),   # NEW
+    ("pokedex",  "Pokédex",         render_pokedex),
+    ("battle",   "Battle",          render_battle),
+    ("evo",      "Evolution Watch", render_evo_watch),
+    ("saveload", "Save / Load",     render_saveload),  # << was "save" — fix to "saveload"
+    ("settings", "Settings",        render_settings),
 ]
 
 def _run_router():
     st.sidebar.title("Navigation")
-    labels = [lbl for _, lbl, _ in PAGE_REGISTRY]
-    choice = st.sidebar.radio("Go to", labels, index=0)
-    # map label to function
-    label_to_fn = {lbl: fn for _, lbl, fn in PAGE_REGISTRY}
-    fn = label_to_fn.get(choice)
-    if fn:
-        fn()
-    else:
-        st.info("No page selected.")
 
-_run_router()
+    # Only show pages that are enabled in settings (if present)
+    vis = (STATE.get("settings", {}).get("visible_pages", {})) or {}
+    pages = [(pid, lbl, fn) for (pid, lbl, fn) in PAGE_REGISTRY if vis.get(pid, True)]
+
+    ids    = [pid for pid, _, _ in pages]
+    labels = [lbl for _, lbl, _ in pages]
+
+    ui = STATE.setdefault("ui", {})
+    cur_id = st.session_state.get("_page_id") or ui.get("page") or (ids[0] if ids else None)
+
+    # Default to first visible page if something got out of sync
+    if cur_id not in ids:
+        cur_id = ids[0]
+
+    # The radio is keyed so it won’t reset to index=0 on reruns
+    idx = ids.index(cur_id)
+    choice = st.sidebar.radio("Go to", labels, index=idx, key="nav_radio")
+
+    sel_id = ids[labels.index(choice)]
+    if sel_id != cur_id:
+        st.session_state["_page_id"] = sel_id
+        ui["page"] = sel_id
+        save_state(STATE)
+
+    # Route exactly one page per run
+    fn = next(fn for pid, _, fn in pages if pid == (ui.get("page") or sel_id))
+    fn()
