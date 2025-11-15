@@ -2285,23 +2285,31 @@ def render_battle():
         st.error("Could not load opponents automatically.")
         return
 
-    # Pick trainer + mon
-    with st.form("sheet_pick_form", clear_on_submit=False):
-        enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
-        default_idx = min(STATE.get("last_battle_pick", [0, 0])[0], len(enc_options) - 1)
-        pick = st.selectbox("Encounter (trainer)", enc_options, index=default_idx)
+    # Pick trainer + mon (instant updates; no form, no button)
+    enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
+    cur_enc_idx, cur_mon_idx = STATE.get("last_battle_pick", [0, 0])
 
-        selected_enc_idx = enc_options.index(pick)
-        enc = STATE["opponents"]["encounters"][selected_enc_idx]
+    cur_enc_idx = max(0, min(cur_enc_idx, len(enc_options) - 1)) if enc_options else 0
+    pick = st.selectbox("Encounter (trainer)", enc_options, index=cur_enc_idx, key="battle_enc_select")
 
-        mon_labels = [f"{i+1}. {m['species']} Lv{m['level']} (Total {m.get('total',0)})" for i, m in enumerate(enc["mons"])]
-        default_mon_idx = min(STATE.get("last_battle_pick", [0, 0])[1], len(mon_labels) - 1)
-        pick_mon = st.selectbox("Their Pokémon", mon_labels, index=default_mon_idx)
+    selected_enc_idx = enc_options.index(pick) if enc_options else 0
+    if selected_enc_idx != cur_enc_idx:
+        # Trainer changed: snap to their first mon
+        STATE["last_battle_pick"] = [selected_enc_idx, 0]
+        save_state(STATE)
+        do_rerun()
 
-        apply_pick = st.form_submit_button("Load encounter")
+    enc = STATE["opponents"]["encounters"][selected_enc_idx]
+    mon_labels = [f"{i+1}. {m['species']} Lv{m['level']} (Total {m.get('total',0)})" for i, m in enumerate(enc["mons"])]
 
-    if apply_pick:
-        STATE["last_battle_pick"] = [selected_enc_idx, mon_labels.index(pick_mon)]
+    cur_mon_idx = max(0, min(STATE.get("last_battle_pick", [0, 0])[1], len(mon_labels) - 1)) if mon_labels else 0
+    pick_mon = st.selectbox("Their Pokémon", mon_labels, index=cur_mon_idx, key=f"battle_mon_select_{selected_enc_idx}")
+
+    selected_mon_idx = mon_labels.index(pick_mon) if mon_labels else 0
+    if selected_mon_idx != cur_mon_idx:
+        STATE["last_battle_pick"] = [selected_enc_idx, selected_mon_idx]
+        save_state(STATE)
+        do_rerun()
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
@@ -2334,28 +2342,63 @@ def render_battle():
     b1, b2 = st.columns(2)
     if b1.button("✅ Beat Pokémon (remove just this one)"):
         try:
+            # Decide next selection BEFORE mutating lists
+            next_enc_idx = selected_enc_idx
+            next_mon_idx = selected_mon_idx
+
             if len(enc["mons"]) == 1:
-                label_before = enc["label"]
-                count = len(enc["mons"])
-                STATE["opponents"]["cleared"].append({"id": new_guid(), "what":"trainer","trainer": label_before,"count": count, "data": enc, "pos": selected_enc_idx})
+                # This was the only mon: remove the trainer, then stay on the same index (which becomes the next trainer)
+                STATE["opponents"]["cleared"].append({
+                    "id": new_guid(),
+                    "what": "trainer",
+                    "trainer": enc["label"],
+                    "count": 1,
+                    "data": enc,
+                    "pos": selected_enc_idx
+                })
                 STATE["opponents"]["encounters"].pop(selected_enc_idx)
+                total = len(STATE["opponents"]["encounters"])
+                next_enc_idx = max(0, min(selected_enc_idx, total - 1))
+                next_mon_idx = 0
             else:
-                label_before = enc["label"]
+                # Remove just the selected mon and point to whatever slid into that slot
                 beaten = enc["mons"].pop(selected_mon_idx)
-                STATE["opponents"]["cleared"].append({"id": new_guid(), "what":"pokemon","trainer": label_before,"species": beaten.get("species"),"level": beaten.get("level"),"row": beaten.get("source_row"),"data": beaten, "pos": selected_enc_idx, "index": selected_mon_idx})
+                STATE["opponents"]["cleared"].append({
+                    "id": new_guid(),
+                    "what": "pokemon",
+                    "trainer": enc["label"],
+                    "species": beaten.get("species"),
+                    "level": beaten.get("level"),
+                    "row": beaten.get("source_row"),
+                    "data": beaten,
+                    "pos": selected_enc_idx,
+                    "index": selected_mon_idx
+                })
+                next_mon_idx = min(selected_mon_idx, len(enc["mons"]) - 1)
+
             save_state(STATE)
-            STATE["last_battle_pick"] = [0,0]; save_state(STATE)
+            STATE["last_battle_pick"] = [next_enc_idx, next_mon_idx]
+            save_state(STATE)
             do_rerun()
         except Exception as e:
             st.error(f"Failed to remove: {e}")
 
     if b2.button("🧹 Beat Trainer (remove entire encounter)"):
         try:
-            label_before = enc["label"]
-            STATE["opponents"]["cleared"].append({"id": new_guid(), "what":"trainer","trainer": label_before,"count": len(enc["mons"]), "data": enc, "pos": selected_enc_idx})
+            STATE["opponents"]["cleared"].append({
+                "id": new_guid(),
+                "what": "trainer",
+                "trainer": enc["label"],
+                "count": len(enc["mons"]),
+                "data": enc,
+                "pos": selected_enc_idx
+            })
             STATE["opponents"]["encounters"].pop(selected_enc_idx)
+
+            total = len(STATE["opponents"]["encounters"])
+            next_enc_idx = max(0, min(selected_enc_idx, total - 1))
+            STATE["last_battle_pick"] = [next_enc_idx, 0]
             save_state(STATE)
-            STATE["last_battle_pick"] = [0,0]; save_state(STATE)
             do_rerun()
         except Exception as e:
             st.error(f"Failed to remove trainer: {e}")
