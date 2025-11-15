@@ -2287,9 +2287,11 @@ def render_battle():
             label = f"{'☠️' if is_fainted else '🟢'} {mon.get('species','?')} fainted"
             new_val = chk_col.checkbox(label, value=is_fainted, key=ckey)
             if new_val and not is_fainted:
-                fainted_set.add(gid); changed = True
+                fainted_set.add(gid)
+                changed = True
             elif not new_val and is_fainted:
-                fainted_set.discard(gid); changed = True
+                fainted_set.discard(gid)
+                changed = True
 
         bcol1, _ = st.columns([1, 4])
         if bcol1.button("Revive all", key="revive_all_btn"):
@@ -2331,10 +2333,18 @@ def render_battle():
         do_rerun()
 
     enc = STATE["opponents"]["encounters"][selected_enc_idx]
-    mon_labels = [f"{i+1}. {m['species']} Lv{m['level']} (Total {m.get('total',0)})" for i, m in enumerate(enc["mons"])]
+    mon_labels = [
+        f"{i+1}. {m['species']} Lv{m['level']} (Total {m.get('total', 0)})"
+        for i, m in enumerate(enc["mons"])
+    ]
 
-    cur_mon_idx = max(0, min(STATE.get("last_battle_pick", [0, 0])[1], len(mon_labels) - 1)) if mon_labels else 0
-    pick_mon = st.selectbox("Their Pokémon", mon_labels, index=cur_mon_idx, key=f"battle_mon_select_{selected_enc_idx}")
+    cur_mon_idx = max(
+        0,
+        min(STATE.get("last_battle_pick", [0, 0])[1], len(mon_labels) - 1),
+    ) if mon_labels else 0
+    pick_mon = st.selectbox(
+        "Their Pokémon", mon_labels, index=cur_mon_idx, key=f"battle_mon_select_{selected_enc_idx}"
+    )
 
     selected_mon_idx = mon_labels.index(pick_mon) if mon_labels else 0
     if selected_mon_idx != cur_mon_idx:
@@ -2359,14 +2369,14 @@ def render_battle():
     selected_mon_idx = max(0, min(selected_mon_idx, mon_count - 1))
 
     opmon = enc["mons"][selected_mon_idx]
-    opp_label = f"{enc.get('label','?')} — {opmon.get('species','?')} Lv{opmon.get('level',1)}"
+    opp_label = f"{enc.get('label', '?')} — {opmon.get('species', '?')} Lv{opmon.get('level', 1)}"
     opp_types = tuple(purge_fairy_types_pair(opmon.get("types") or []))
     t1, t2 = opp_types
     opp_pairs = list(opmon.get("moves", []))
     opp_total = int(opmon.get("total", 0))
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
-    st.caption(
-        opp_sprite_html = sprite_img_html(opmon.get("species", "?"), size=48)
+
+    opp_sprite_html = sprite_img_html(opmon.get("species", "?"), size=48)
     header_html = (
         f"{opp_sprite_html}"
         f"<strong>Opponent:</strong> {opp_label} | "
@@ -2374,7 +2384,6 @@ def render_battle():
         f"Total: {opp_total} | Moves: {moves_str}"
     )
     st.markdown(header_html, unsafe_allow_html=True)
-    )
 
     b1, b2 = st.columns(2)
     if b1.button("✅ Beat Pokémon (remove just this one)"):
@@ -2385,14 +2394,16 @@ def render_battle():
 
             if len(enc["mons"]) == 1:
                 # This was the only mon: remove the trainer, then stay on the same index (which becomes the next trainer)
-                STATE["opponents"]["cleared"].append({
-                    "id": new_guid(),
-                    "what": "trainer",
-                    "trainer": enc["label"],
-                    "count": 1,
-                    "data": enc,
-                    "pos": selected_enc_idx
-                })
+                STATE["opponents"]["cleared"].append(
+                    {
+                        "id": new_guid(),
+                        "what": "trainer",
+                        "trainer": enc["label"],
+                        "count": 1,
+                        "data": enc,
+                        "pos": selected_enc_idx,
+                    }
+                )
                 STATE["opponents"]["encounters"].pop(selected_enc_idx)
                 total = len(STATE["opponents"]["encounters"])
                 next_enc_idx = max(0, min(selected_enc_idx, total - 1))
@@ -2400,17 +2411,19 @@ def render_battle():
             else:
                 # Remove just the selected mon and point to whatever slid into that slot
                 beaten = enc["mons"].pop(selected_mon_idx)
-                STATE["opponents"]["cleared"].append({
-                    "id": new_guid(),
-                    "what": "pokemon",
-                    "trainer": enc["label"],
-                    "species": beaten.get("species"),
-                    "level": beaten.get("level"),
-                    "row": beaten.get("source_row"),
-                    "data": beaten,
-                    "pos": selected_enc_idx,
-                    "index": selected_mon_idx
-                })
+                STATE["opponents"]["cleared"].append(
+                    {
+                        "id": new_guid(),
+                        "what": "pokemon",
+                        "trainer": enc["label"],
+                        "species": beaten.get("species"),
+                        "level": beaten.get("level"),
+                        "row": beaten.get("source_row"),
+                        "data": beaten,
+                        "pos": selected_enc_idx,
+                        "index": selected_mon_idx,
+                    }
+                )
                 next_mon_idx = min(selected_mon_idx, len(enc["mons"]) - 1)
 
             save_state(STATE)
@@ -2422,14 +2435,16 @@ def render_battle():
 
     if b2.button("🧹 Beat Trainer (remove entire encounter)"):
         try:
-            STATE["opponents"]["cleared"].append({
-                "id": new_guid(),
-                "what": "trainer",
-                "trainer": enc["label"],
-                "count": len(enc["mons"]),
-                "data": enc,
-                "pos": selected_enc_idx
-            })
+            STATE["opponents"]["cleared"].append(
+                {
+                    "id": new_guid(),
+                    "what": "trainer",
+                    "trainer": enc["label"],
+                    "count": len(enc["mons"]),
+                    "data": enc,
+                    "pos": selected_enc_idx,
+                }
+            )
             STATE["opponents"]["encounters"].pop(selected_enc_idx)
 
             total = len(STATE["opponents"]["encounters"])
@@ -2448,12 +2463,18 @@ def render_battle():
             current_labels = {enc2["label"] for enc2 in STATE["opponents"]["encounters"]}
             for i, item in enumerate(list(reversed(log[-15:]))):
                 if item.get("what") == "pokemon":
-                    label = f"• Beat Pokémon: {item.get('species')} (Lv{item.get('level')}) — Trainer: {item.get('trainer')}"
+                    label = (
+                        f"• Beat Pokémon: {item.get('species')} (Lv{item.get('level')}) — "
+                        f"Trainer: {item.get('trainer')}"
+                    )
                     can_undo = item.get("trainer") in current_labels
                 else:
-                    label = f"• Beat Trainer: {item.get('trainer')} — removed {item.get('count',0)} Pokémon"
+                    label = (
+                        f"• Beat Trainer: {item.get('trainer')} — "
+                        f"removed {item.get('count', 0)} Pokémon"
+                    )
                     can_undo = item.get("trainer") not in current_labels
-                cols = st.columns([6,1])
+                cols = st.columns([6, 1])
                 cols[0].write(label)
                 if can_undo:
                     if cols[1].button("Undo", key=f"undo_{item.get('id', i)}"):
@@ -2464,17 +2485,32 @@ def render_battle():
                                     break
                         else:
                             if item["trainer"] not in {e["label"] for e in STATE["opponents"]["encounters"]}:
-                                STATE["opponents"]["encounters"].insert(min(int(item.get("pos",0)), len(STATE["opponents"]["encounters"])), item["data"])
+                                STATE["opponents"]["encounters"].insert(
+                                    min(
+                                        int(item.get("pos", 0)),
+                                        len(STATE["opponents"]["encounters"]),
+                                    ),
+                                    item["data"],
+                                )
                         save_state(STATE)
                         st.success("Undo applied.")
                         do_rerun()
 
-        # === special type-math exceptions (fixed/set-HP, OHKO): ignore resist/weak; keep immunities ===
+    # === special type-math exceptions (fixed/set-HP, OHKO): ignore resist/weak; keep immunities ===
     # Gen 3 set: Seismic Toss, Night Shade, Dragon Rage, SonicBoom, Psywave, Super Fang, Endeavor,
     #            Fissure, Guillotine, Horn Drill, Sheer Cold
     IMMUNITY_ONLY_MOVES = {
-        "seismictoss","nightshade","dragonrage","sonicboom","psywave",
-        "superfang","endeavor","fissure","guillotine","horndrill","sheercold"
+        "seismictoss",
+        "nightshade",
+        "dragonrage",
+        "sonicboom",
+        "psywave",
+        "superfang",
+        "endeavor",
+        "fissure",
+        "guillotine",
+        "horndrill",
+        "sheercold",
     }
 
     def _immunity_only_mult(move_type: str, defender_types: tuple) -> float:
@@ -2493,12 +2529,10 @@ def render_battle():
         Fixed/set-HP and OHKO moves ignore type effectiveness except immunities.
         Everything else uses normal type chart.
         """
-        if move_name:
-            if move_id(move_name) in IMMUNITY_ONLY_MOVES:
-                return _immunity_only_mult(move_type, defender_types)
+        if move_name and move_id(move_name) in IMMUNITY_ONLY_MOVES:
+            return _immunity_only_mult(move_type, defender_types)
         return get_mult(move_type, defender_types)
 
-    # --- scoring helpers ---
     def compute_best_offense(my_moves, opp_types):
         detail = []
         best_score = -9999
@@ -2536,7 +2570,9 @@ def render_battle():
         my_types = (tpair[0], tpair[1])
         my_total = int(mon.get("total", 0))
 
-        sp = STATE["species_db"].get(mon.get("species_key") or species_key(mon["species"]), {})
+        sp = STATE["species_db"].get(
+            mon.get("species_key") or species_key(mon["species"]), {}
+        )
         if not sp.get("learnset"):
             sp["learnset"] = rebuild_learnset_for(sp.get("name", mon["species"]))
             STATE["species_db"][species_key(sp.get("name", mon["species"]))] = sp
@@ -2556,27 +2592,42 @@ def render_battle():
         (def_sc, def_move, def_mult), def_rows = compute_their_best_vs_me(opp_pairs, my_types)
         total = off_sc + def_sc
 
-        results.append({
-            "mon": mon,
-            "my_total": my_total,
-            "opp_total": opp_total,
-            "off": (off_sc, off_move, off_mult),
-            "def": (def_sc, def_move, def_mult),
-            "off_rows": off_rows,
-            "def_rows": def_rows,
-            "total_score": total
-        })
+        results.append(
+            {
+                "mon": mon,
+                "my_total": my_total,
+                "opp_total": opp_total,
+                "off": (off_sc, off_move, off_mult),
+                "def": (def_sc, def_move, def_mult),
+                "off_rows": off_rows,
+                "def_rows": def_rows,
+                "total_score": total,
+            }
+        )
 
     results.sort(
-        key=lambda r: (r.get("total_score", 0), int((r.get("mon") or {}).get("total", 0))),
-        reverse=True
+        key=lambda r: (
+            r.get("total_score", 0),
+            int((r.get("mon") or {}).get("total", 0)),
+        ),
+        reverse=True,
     )
 
-            sprite_html = sprite_img_html(mon["species"], size=40)
+    st.markdown("---")
+    st.subheader("Your team vs this Pokémon")
+
+    for r in results:
+        mon = r["mon"]
+        off_sc, off_move, off_mult = r["off"]
+        def_sc, def_move, def_mult = r["def"]
+        total = r["total_score"]
+        my_total = r["my_total"]
+
+        sprite_html = sprite_img_html(mon["species"], size=40)
         line_html = (
             f"{sprite_html}"
             f"<strong>{mon['species']}</strong> — "
-            f"(Your Total: {r['my_total']} vs Opp Total: {opp_txt}) — "
+            f"(Your Total: {my_total} vs Opp Total: {opp_total}) — "
             f"Offense: <strong>{off_sc}</strong> | "
             f"Defense: <strong>{def_sc}</strong> → "
             f"<strong>Total {total}</strong>"
@@ -2588,6 +2639,8 @@ def render_battle():
 
         st.caption("Their moves vs you:")
         _render_moves_grid(r["def_rows"], offense=False)
+
+        st.markdown("---")
 
 # =============================================================================
 # Evolution Watch page
