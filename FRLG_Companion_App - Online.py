@@ -251,6 +251,12 @@ st.markdown("""
   --arrow-down: #ef4444;
 }
 
+.sprite-inline{
+  vertical-align: middle;
+  image-rendering: pixelated;
+  margin-right: 8px;
+}
+
 /* Container shrinks to content instead of filling the screen */
 .moves-grid{
   display: inline-block;
@@ -1301,9 +1307,67 @@ if not STATE.get("species_db"):
     STATE["moves_db"] = base["moves_db"]
     STATE["species_db"] = base["species_db"]
     STATE["meta"] = base.get("meta", {"species_scope": str(dex_max())})  # <<< ADD THIS LINE
+
 # =============================================================================
 # UI helpers
 # =============================================================================
+@st.cache_data(show_spinner=False)
+def _dex_num_for_name_cached(name: str) -> Optional[int]:
+    """
+    Map a species name to its Pokédex number (within current scope) so we can
+    build a stable sprite URL. Uses the same Showdown pokedex data as the rest
+    of the app.
+    """
+    if not name:
+        return None
+    try:
+        dex = get_pokedex_cached() or {}
+    except Exception:
+        return None
+
+    sid = ps_id(name)
+    maxdex = dex_max()
+
+    rec = dex.get(sid)
+    if rec and isinstance(rec.get("num"), int) and 1 <= rec["num"] <= maxdex and not rec.get("forme"):
+        return rec["num"]
+
+    # Fallback: scan by normalized name
+    for r in dex.values():
+        if not r:
+            continue
+        nm = r.get("name", "")
+        if ps_id(nm) == sid and not r.get("forme"):
+            num = r.get("num")
+            if isinstance(num, int) and 1 <= num <= maxdex:
+                return num
+    return None
+
+
+def sprite_url_for_species(name: str) -> Optional[str]:
+    """
+    Return a front sprite URL for an in-scope species, or None if unknown.
+    Uses the standard PokeAPI sprite repository by numeric ID.
+    """
+    num = _dex_num_for_name_cached(name)
+    if not num:
+        return None
+    return f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{num}.png"
+
+
+def sprite_img_html(name: str, size: int = 40) -> str:
+    """
+    Small inline <img> tag for use in st.markdown(..., unsafe_allow_html=True).
+    """
+    url = sprite_url_for_species(name)
+    if not url:
+        return ""
+    safe_name = (name or "").replace('"', "&quot;")
+    return (
+        f'<img src="{url}" class="sprite-inline" '
+        f'width="{size}" height="{size}" alt="{safe_name} sprite"/>'
+    )
+    
 def _frlg_allowed_damaging_moves_set() -> set:
     """
     Union of *all* damaging FRLG-legal moves across in-scope species:
@@ -1516,6 +1580,12 @@ def render_settings():
         index=STARTER_OPTIONS.index(starter_cur) if starter_cur in STARTER_OPTIONS else 0,
         help="Used to pick the correct Rival team and sheet tab."
     )
+    starter_sprite = sprite_url_for_species(starter_new)
+    if starter_sprite:
+        st.image(starter_sprite, width=64)
+
+    if starter_new != starter_cur:
+        STATE["settings"]["starter"] = starter_new
     if starter_new != starter_cur:
         STATE["settings"]["starter"] = starter_new
         save_state(STATE)
@@ -1594,6 +1664,9 @@ def render_pokedex():
                 if species_name == "(choose)":
                     st.caption("Pick a Pokémon to auto-fill moves.")
                 else:
+                    sprite_url = sprite_url_for_species(species_name)
+                    if sprite_url:
+                        st.image(sprite_url, width=64)
                     lvl = int(STATE.get("settings",{}).get("default_level", 20))
                     sk = species_key(species_name)
                     sp = STATE["species_db"][sk]
@@ -1824,7 +1897,12 @@ def render_pokedex():
 
             # --- Row header with inline Lock + Level controls ---
             c_txt, c_lock, c_lv, c_apply = st.columns([7, 1, 1.4, 1])
-            c_txt.markdown(f"{i}.  **{mon['species']}** — Lv{mon['level']} — {t1}/{t2 or '—'} — Total {mon['total']}")
+            header_html = (
+                f"{sprite_img_html(mon['species'])}"
+                f"{i}.  <strong>{mon['species']}</strong> — "
+                f"Lv{mon['level']} — {t1}/{t2 or '—'} — Total {mon['total']}"
+            )
+            c_txt.markdown(header_html, unsafe_allow_html=True)
 
             is_locked = gid in STATE.get("locks", [])
             locked_new = c_lock.checkbox("🔒", value=is_locked, key=f"lock_{gid}", help="Lock to team")
@@ -1934,7 +2012,12 @@ def render_pokedex():
 
             # --- Row header with inline Lock + Level controls ---
             c_txt, c_lock, c_lv, c_apply = st.columns([7, 1, 1.4, 1])
-            c_txt.markdown(f"**{mon['species']}** — Lv{mon['level']} — {t1}/{t2 or '—'} — Total {mon['total']}")
+            header_html = (
+                f"{sprite_img_html(mon['species'])}"
+                f"<strong>{mon['species']}</strong> — "
+                f"Lv{mon['level']} — {t1}/{t2 or '—'} — Total {mon['total']}"
+            )
+            c_txt.markdown(header_html, unsafe_allow_html=True)
 
             is_locked = gid in STATE.get("locks", [])
             locked_new = c_lock.checkbox("🔒", value=is_locked, key=f"lock_{gid}", help="Lock to team")
@@ -2192,10 +2275,17 @@ def render_battle():
             col = cols[i % len(cols)]
             gid = mon.get("guid")
             is_fainted = gid in fainted_set
-            label = f"{'☠️' if is_fainted else '🟢'} {mon.get('species','?')} fainted"
             ckey = f"fainted_{gid}"
 
-            new_val = col.checkbox(label, value=is_fainted, key=ckey)
+            img_col, chk_col = col.columns([1, 2])
+            img_html = sprite_img_html(mon.get("species", "?"), size=40)
+            if img_html:
+                img_col.markdown(img_html, unsafe_allow_html=True)
+            else:
+                img_col.write("")
+
+            label = f"{'☠️' if is_fainted else '🟢'} {mon.get('species','?')} fainted"
+            new_val = chk_col.checkbox(label, value=is_fainted, key=ckey)
             if new_val and not is_fainted:
                 fainted_set.add(gid); changed = True
             elif not new_val and is_fainted:
@@ -2276,8 +2366,14 @@ def render_battle():
     opp_total = int(opmon.get("total", 0))
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
     st.caption(
-        f"Opponent: **{opp_label}** | Types: {t1 or '—'} / {t2 or '—'} | "
+        opp_sprite_html = sprite_img_html(opmon.get("species", "?"), size=48)
+    header_html = (
+        f"{opp_sprite_html}"
+        f"<strong>Opponent:</strong> {opp_label} | "
+        f"Types: {t1 or '—'} / {t2 or '—'} | "
         f"Total: {opp_total} | Moves: {moves_str}"
+    )
+    st.markdown(header_html, unsafe_allow_html=True)
     )
 
     b1, b2 = st.columns(2)
@@ -2476,18 +2572,16 @@ def render_battle():
         reverse=True
     )
 
-    st.markdown("---")
-    st.subheader("Results")
-    for r in results:
-        mon = r["mon"]
-        off_sc, off_move, off_mult = r["off"]
-        def_sc, def_move, def_mult = r["def"]
-        total = r["total_score"]
-        opp_txt = f"{r['opp_total']}" if r['opp_total'] is not None else "?"
-        st.markdown(
-            f"**{mon['species']}** — (Your Total: {r['my_total']} vs Opp Total: {opp_txt}) — "
-            f"Offense: **{off_sc}** | Defense: **{def_sc}** → **Total {total}**"
+            sprite_html = sprite_img_html(mon["species"], size=40)
+        line_html = (
+            f"{sprite_html}"
+            f"<strong>{mon['species']}</strong> — "
+            f"(Your Total: {r['my_total']} vs Opp Total: {opp_txt}) — "
+            f"Offense: <strong>{off_sc}</strong> | "
+            f"Defense: <strong>{def_sc}</strong> → "
+            f"<strong>Total {total}</strong>"
         )
+        st.markdown(line_html, unsafe_allow_html=True)
 
         st.caption("Your moves vs them:")
         _render_moves_grid(r["off_rows"], offense=True)
@@ -2741,7 +2835,8 @@ def render_evo_watch():
             use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
 
             with cols[j].container(border=True):
-                st.markdown(f"**{species} • Lv{lvl}**")
+                header_html = f"{sprite_img_html(species, size=40)}<strong>{species} • Lv{lvl}</strong>"
+                st.markdown(header_html, unsafe_allow_html=True)
                 if not use_rows:
                     st.caption("No evolutions listed or none match filter.")
                     continue
@@ -2756,7 +2851,8 @@ def render_evo_watch():
 
                 for idx, r in enumerate(use_rows):
                     c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 2, 3, 2, 2])
-                    c1.write(r["to"])
+                    target_html = f"{sprite_img_html(r['to'], size=32)}{r['to']}"
+                    c1.markdown(target_html, unsafe_allow_html=True)
                     method_pretty = {"level": "Level", "Use item": "Use Item", "item": "Use Item", "trade": "Trade", "manual": "Manual"}[r["method"]]
                     # ensure consistent label if earlier code sets method to 'item'
                     if r["method"] == "item":
