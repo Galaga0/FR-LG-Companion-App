@@ -417,26 +417,28 @@ TYPE_EMOJI = {
 }
 
 # Soft gradients per primary type for opponent cards
+# Stronger, Pokémon-themed gradients per primary type
 TYPE_GRADIENT = {
-    "Fire":     ("rgba(248,113,113,0.32)", "rgba(15,23,42,0.0)"),
-    "Water":    ("rgba(59,130,246,0.32)",  "rgba(15,23,42,0.0)"),
-    "Electric": ("rgba(234,179,8,0.32)",   "rgba(15,23,42,0.0)"),
-    "Grass":    ("rgba(52,211,153,0.32)",  "rgba(15,23,42,0.0)"),
-    "Ice":      ("rgba(125,211,252,0.32)", "rgba(15,23,42,0.0)"),
-    "Fighting": ("rgba(248,113,113,0.32)", "rgba(15,23,42,0.0)"),
-    "Poison":   ("rgba(192,132,252,0.32)", "rgba(15,23,42,0.0)"),
-    "Ground":   ("rgba(234,179,8,0.32)",   "rgba(15,23,42,0.0)"),
-    "Flying":   ("rgba(129,140,248,0.32)", "rgba(15,23,42,0.0)"),
-    "Psychic":  ("rgba(244,114,182,0.32)", "rgba(15,23,42,0.0)"),
-    "Bug":      ("rgba(132,204,22,0.32)",  "rgba(15,23,42,0.0)"),
-    "Rock":     ("rgba(251,191,36,0.32)",  "rgba(15,23,42,0.0)"),
-    "Ghost":    ("rgba(129,140,248,0.32)", "rgba(15,23,42,0.0)"),
-    "Dragon":   ("rgba(96,165,250,0.32)",  "rgba(15,23,42,0.0)"),
-    "Dark":     ("rgba(55,65,81,0.50)",    "rgba(15,23,42,0.0)"),
-    "Steel":    ("rgba(148,163,184,0.40)", "rgba(15,23,42,0.0)"),
+    "Fire":     ("rgba(248,113,113,0.85)", "rgba(239,68,68,0.75)"),
+    "Water":    ("rgba(56,189,248,0.85)",  "rgba(59,130,246,0.75)"),
+    "Electric": ("rgba(250,204,21,0.90)",  "rgba(234,179,8,0.80)"),
+    "Grass":    ("rgba(52,211,153,0.85)",  "rgba(34,197,94,0.75)"),
+    "Ice":      ("rgba(125,211,252,0.90)", "rgba(59,130,246,0.75)"),
+    "Fighting": ("rgba(248,113,113,0.90)", "rgba(220,38,38,0.80)"),
+    "Poison":   ("rgba(192,132,252,0.90)", "rgba(168,85,247,0.80)"),
+    "Ground":   ("rgba(234,179,8,0.90)",   "rgba(202,138,4,0.80)"),
+    "Flying":   ("rgba(129,140,248,0.90)", "rgba(59,130,246,0.80)"),
+    "Psychic":  ("rgba(244,114,182,0.90)", "rgba(236,72,153,0.80)"),
+    "Bug":      ("rgba(190,242,100,0.90)", "rgba(132,204,22,0.80)"),
+    "Rock":     ("rgba(253,186,116,0.90)", "rgba(234,179,8,0.80)"),
+    "Ghost":    ("rgba(167,139,250,0.90)", "rgba(129,140,248,0.80)"),
+    "Dragon":   ("rgba(96,165,250,0.90)",  "rgba(37,99,235,0.80)"),
+    "Dark":     ("rgba(31,41,55,0.95)",    "rgba(15,23,42,0.90)"),
+    "Steel":    ("rgba(148,163,184,0.90)", "rgba(75,85,99,0.80)"),
+    "Normal":   ("rgba(209,213,219,0.85)", "rgba(156,163,175,0.75)"),
 }
 
-DEFAULT_CARD_GRADIENT = ("rgba(148,163,184,0.22)", "rgba(15,23,42,0.0)")
+DEFAULT_CARD_GRADIENT = ("rgba(148,163,184,0.80)", "rgba(75,85,99,0.70)")
 
 # Global sprite size (px) so every sprite uses the same visual size
 SPRITE_SIZE = 72
@@ -1487,7 +1489,70 @@ def sprite_img_html(name: str, size: int = None) -> str:
         f'<img src="{url}" class="sprite-inline" '
         f'width="{s}" height="{s}" alt="{safe_name} sprite"/>'
     )
-    
+
+# === Trainer sprites (opponent) ===
+
+TRAINER_SPRITE_SIZE = SPRITE_SIZE  # keep same base size
+
+@st.cache_data(show_spinner=False)
+def trainer_slug_from_label(label: str) -> str:
+    """
+    Heuristic: extract a trainer class from label like 'Youngster Joey #2' -> 'youngster',
+    'Lass Ann' -> 'lass', 'Team Rocket Grunt' -> 'rocket-grunt', etc.
+    You can refine this mapping later if you want 100% control.
+    """
+    if not label:
+        return "trainer"
+
+    s = label.lower()
+    # very rough mapping, tweak as needed for your sheet labels
+    if "rival" in s or "blue" in s or "gary" in s:
+        return "rival"
+    if "leader" in s or "gym" in s:
+        return "leader"
+    if "rocket" in s:
+        return "rocket-grunt"
+    if "elite" in s:
+        return "elite-four"
+    if "champion" in s:
+        return "champion"
+    if "lass" in s:
+        return "lass"
+    if "youngster" in s:
+        return "youngster"
+    if "fisher" in s:
+        return "fisherman"
+    if "bug catcher" in s:
+        return "bug-catcher"
+
+    # fallback: first word as class
+    first = s.split()[0]
+    return re.sub(r"[^a-z0-9]+", "-", first) or "trainer"
+
+def trainer_sprite_url(label: str) -> Optional[str]:
+    """
+    Return a trainer sprite URL based on their label/class.
+    This uses a generic Gen 3-ish trainer sprite set; adjust path if you have your own.
+    """
+    slug = trainer_slug_from_label(label)
+    base = (
+        "https://raw.githubusercontent.com/bolu32/pokeemerald-expansion-sprites/main/trainers"
+    )
+    # You may need to align slug → actual filenames in your sprite source.
+    return f"{base}/{slug}.png"
+
+
+def trainer_sprite_img_html(label: str, size: int = None) -> str:
+    url = trainer_sprite_url(label)
+    if not url:
+        return ""
+    s = TRAINER_SPRITE_SIZE if size is None else size
+    safe_label = (label or "").replace('"', "&quot;")
+    return (
+        f'<img src="{url}" class="sprite-inline" '
+        f'width="{s}" height="{s}" alt="{safe_label} trainer sprite"/>'
+    )
+
 def _frlg_allowed_damaging_moves_set() -> set:
     """
     Union of *all* damaging FRLG-legal moves across in-scope species:
@@ -2458,33 +2523,6 @@ def render_battle():
     mons = enc.get("mons", []) or []
     mon_count = len(mons)
 
-    # If user clicked a card (?battle_mon=idx), sync it into state
-    try:
-        qp_val = st.query_params.get("battle_mon")
-        if qp_val is not None:
-            if isinstance(qp_val, list):
-                raw_idx = qp_val[0]
-            else:
-                raw_idx = qp_val
-            mi = int(raw_idx)
-            if mon_count:
-                mi = max(0, min(mi, mon_count - 1))
-            else:
-                mi = 0
-
-            lbp = STATE.get("last_battle_pick", [0, 0])
-            if lbp[0] != selected_enc_idx or lbp[1] != mi:
-                STATE["last_battle_pick"] = [selected_enc_idx, mi]
-                save_state(STATE)
-
-            # clear battle_mon from URL so it doesn't keep re-triggering
-            qp = dict(st.query_params)
-            qp.pop("battle_mon", None)
-            st.query_params.clear()
-            st.query_params.update(qp)
-    except Exception:
-        pass
-
     # Current selected mon index from state (for highlight)
     cur_mon_idx = 0
     if mon_count:
@@ -2550,17 +2588,21 @@ def render_battle():
 
                 sprite_html = sprite_img_html(species, size=112)
 
-                primary_type = normalize_type(t1) or normalize_type(t2) or ""
-                g1, g2 = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+                # Use two-type aware gradients: primary from T1, secondary from T2 if available
+                primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
+                secondary_type = normalize_type(t2) or primary_type
+
+                g1a, g1b = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+                g2a, g2b = TYPE_GRADIENT.get(secondary_type, TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT))
+
+                # Pick first color of primary and second color of secondary to mix
+                g1 = g1a
+                g2 = g2b
+
                 style = f"--opp-bg1:{g1};--opp-bg2:{g2};"
 
-                # Build link that selects this mon via ?battle_mon=idx
-                qs = dict(base_qs)
-                qs["battle_mon"] = str(idx)
-                href = "?" + urlencode(qs, doseq=True)
-
+                # Build HTML card (no link; click handled via Streamlit button)
                 card_html = f"""
-                <a href="{href}" style="text-decoration:none;">
                   <div class="{card_classes}" style="{style}">
                     <div class="opp-card-sprite">{sprite_html}</div>
                     <div class="opp-card-main">
@@ -2572,11 +2614,22 @@ def render_battle():
                       </div>
                     </div>
                   </div>
-                </a>
                 """
 
                 with cols[col_pos]:
-                    st.markdown(card_html, unsafe_allow_html=True)
+                    if st.button(
+                        card_html,
+                        key=f"opp_card_{selected_enc_idx}_{idx}",
+                        help=f"Select {species}",
+                    ):
+                        STATE["last_battle_pick"] = [selected_enc_idx, idx]
+                        save_state(STATE)
+                        do_rerun()
+                    # This keeps the HTML rendered on the button label
+                    st.markdown(
+                        f"<style>button[kind='secondary'] div.{card_classes} {{ width: 100%; }}</style>",
+                        unsafe_allow_html=True,
+                    )
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
@@ -2603,6 +2656,11 @@ def render_battle():
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
     # No separate header line here — all details now live in the cards.
 
+# Trainer sprite header
+    trainer_label = enc.get("label", "?")
+    trainer_html = trainer_sprite_img_html(trainer_label, size=TRAINER_SPRITE_SIZE)
+    if trainer_html:
+        st.markdown(trainer_html, unsafe_allow_html=True)
     b1, b2 = st.columns(2)
     if b1.button("✅ Beat Pokémon (remove just this one)"):
         try:
