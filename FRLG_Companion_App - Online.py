@@ -2616,7 +2616,7 @@ def render_battle():
                     if hasattr(st, "query_params"):
                         st.query_params.clear()
                     else:
-                    st.experimental_set_query_params()
+                        st.experimental_set_query_params()
                 except Exception:
                     pass
         except Exception:
