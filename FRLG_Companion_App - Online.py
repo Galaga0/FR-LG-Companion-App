@@ -326,6 +326,10 @@ TYPE_EMOJI = {
     "Fighting":"🥊","Poison":"☠️","Ground":"⛰️","Flying":"🪽","Psychic":"🔮",
     "Bug":"🐛","Rock":"🪨","Ghost":"👻","Dragon":"🐉","Dark":"🌑","Steel":"⚙️"
 }
+
+# Global sprite size (px) so every sprite uses the same visual size
+SPRITE_SIZE = 64
+
 def type_emoji(t: Optional[str]) -> str:
     return TYPE_EMOJI.get(normalize_type(t) or "", "❔")
 
@@ -1347,25 +1351,30 @@ def _dex_num_for_name_cached(name: str) -> Optional[int]:
 def sprite_url_for_species(name: str) -> Optional[str]:
     """
     Return a front sprite URL for an in-scope species, or None if unknown.
-    Uses the standard PokeAPI sprite repository by numeric ID.
+    Uses the Gen 3 FireRed/LeafGreen sprites by numeric ID.
     """
     num = _dex_num_for_name_cached(name)
     if not num:
         return None
-    return f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{num}.png"
+    base = (
+        "https://raw.githubusercontent.com/PokeAPI/sprites/master/"
+        "sprites/pokemon/versions/generation-iii/firered-leafgreen"
+    )
+    return f"{base}/{num}.png"
 
-
-def sprite_img_html(name: str, size: int = 40) -> str:
+def sprite_img_html(name: str, size: int = None) -> str:
     """
     Small inline <img> tag for use in st.markdown(..., unsafe_allow_html=True).
+    Uses a global SPRITE_SIZE so everything stays consistent.
     """
     url = sprite_url_for_species(name)
     if not url:
         return ""
+    s = SPRITE_SIZE if size is None else size
     safe_name = (name or "").replace('"', "&quot;")
     return (
         f'<img src="{url}" class="sprite-inline" '
-        f'width="{size}" height="{size}" alt="{safe_name} sprite"/>'
+        f'width="{s}" height="{s}" alt="{safe_name} sprite"/>'
     )
     
 def _frlg_allowed_damaging_moves_set() -> set:
@@ -1580,9 +1589,9 @@ def render_settings():
         index=STARTER_OPTIONS.index(starter_cur) if starter_cur in STARTER_OPTIONS else 0,
         help="Used to pick the correct Rival team and sheet tab."
     )
-    starter_sprite = sprite_url_for_species(starter_new)
-    if starter_sprite:
-        st.image(starter_sprite, width=64)
+    starter_sprite_html = sprite_img_html(starter_new)
+    if starter_sprite_html:
+        st.markdown(starter_sprite_html, unsafe_allow_html=True)
 
     if starter_new != starter_cur:
         STATE["settings"]["starter"] = starter_new
@@ -1664,9 +1673,9 @@ def render_pokedex():
                 if species_name == "(choose)":
                     st.caption("Pick a Pokémon to auto-fill moves.")
                 else:
-                    sprite_url = sprite_url_for_species(species_name)
-                    if sprite_url:
-                        st.image(sprite_url, width=64)
+                    sprite_html = sprite_img_html(species_name)
+                    if sprite_html:
+                        st.markdown(sprite_html, unsafe_allow_html=True)
                     lvl = int(STATE.get("settings",{}).get("default_level", 20))
                     sk = species_key(species_name)
                     sp = STATE["species_db"][sk]
@@ -2278,7 +2287,7 @@ def render_battle():
             ckey = f"fainted_{gid}"
 
             img_col, chk_col = col.columns([1, 2])
-            img_html = sprite_img_html(mon.get("species", "?"), size=40)
+            img_html = sprite_img_html(mon.get("species", "?"))
             if img_html:
                 img_col.markdown(img_html, unsafe_allow_html=True)
             else:
@@ -2376,7 +2385,7 @@ def render_battle():
     opp_total = int(opmon.get("total", 0))
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
 
-    opp_sprite_html = sprite_img_html(opmon.get("species", "?"), size=48)
+    opp_sprite_html = sprite_img_html(opmon.get("species", "?"))
     header_html = (
         f"{opp_sprite_html}"
         f"<strong>Opponent:</strong> {opp_label} | "
@@ -2623,7 +2632,7 @@ def render_battle():
         total = r["total_score"]
         my_total = r["my_total"]
 
-        sprite_html = sprite_img_html(mon["species"], size=40)
+        sprite_html = sprite_img_html(mon["species"])
         line_html = (
             f"{sprite_html}"
             f"<strong>{mon['species']}</strong> — "
@@ -2888,7 +2897,7 @@ def render_evo_watch():
             use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
 
             with cols[j].container(border=True):
-                header_html = f"{sprite_img_html(species, size=40)}<strong>{species} • Lv{lvl}</strong>"
+                header_html = f"{sprite_img_html(species)}<strong>{species} • Lv{lvl}</strong>"
                 st.markdown(header_html, unsafe_allow_html=True)
                 if not use_rows:
                     st.caption("No evolutions listed or none match filter.")
@@ -2904,7 +2913,7 @@ def render_evo_watch():
 
                 for idx, r in enumerate(use_rows):
                     c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 2, 3, 2, 2])
-                    target_html = f"{sprite_img_html(r['to'], size=32)}{r['to']}"
+                    target_html = f"{sprite_img_html(r['to'])}{r['to']}"
                     c1.markdown(target_html, unsafe_allow_html=True)
                     method_pretty = {"level": "Level", "Use item": "Use Item", "item": "Use Item", "trade": "Trade", "manual": "Manual"}[r["method"]]
                     # ensure consistent label if earlier code sets method to 'item'
