@@ -2392,13 +2392,15 @@ def render_battle():
     pick = st.selectbox("Encounter (trainer)", enc_options, index=cur_enc_idx, key="battle_enc_select")
 
     selected_enc_idx = enc_options.index(pick) if enc_options else 0
+
+    # If trainer changed, store new selection and rerun
     if selected_enc_idx != cur_enc_idx:
-        # Trainer changed: snap to their first mon
         STATE["last_battle_pick"] = [selected_enc_idx, 0]
         save_state(STATE)
         do_rerun()
 
-        enc = STATE["opponents"]["encounters"][selected_enc_idx]
+    # Always resolve the encounter from the current index
+    enc = STATE["opponents"]["encounters"][selected_enc_idx]
     mons = enc.get("mons", []) or []
     mon_count = len(mons)
 
