@@ -53,21 +53,6 @@ def _legal_damaging_moves_for_chain(species_name: str):
         return None
     # ...rest of your function unchanged...
 
-    # Helper to find a Kanto dex record by name
-    def _dex_rec(name: str):
-        sid = ps_id(name)
-        rec = dex.get(sid)
-        if rec and rec.get("forme"):
-            rec = None
-        if rec and isinstance(rec.get("num"), int) and 1 <= rec["num"] <= 151:
-            return rec
-        # fallback: scan
-        for r in dex.values():
-            if r and isinstance(r.get("num"), int) and 1 <= r["num"] <= 151 and not r.get("forme"):
-                if ps_id(r.get("name","")) == sid:
-                    return r
-        return None
-
     sd = _dex_rec(species_name)
     if not sd:
         return []
@@ -139,24 +124,6 @@ def is_base_name_151(name: str) -> bool:
     sk = species_key(name)
     sp = STATE.get("species_db", {}).get(sk, {}) or {}
     return not bool(sp.get("evolves_from"))
-
-
-def base_key_for(name: str) -> str:
-    """
-    Return the base species_key for a given display name, collapsing evolutions.
-    Uses STATE["species_db"] evolution chains if available.
-    """
-    sk = species_key(name)
-    sp = STATE.get("species_db", {}).get(sk) or {}
-    # Walk backwards to base if chain info is present
-    visited = set()
-    while sp and sp.get("evolves_from"):
-        prev_name = sp["evolves_from"]
-        if prev_name in visited: break
-        visited.add(prev_name)
-        sk = species_key(prev_name)
-        sp = STATE.get("species_db", {}).get(sk) or {}
-    return sk
 
 import streamlit as st
 from typing import List, Dict, Tuple, Optional
@@ -266,27 +233,6 @@ def _best_by_typing(roster):
         if cur is None or total_of(m) > total_of(cur):
             best[sig] = m
     return best
-
-def finalize_team_unique(roster, K=6, preselected=None):
-    ranked = sorted(list(roster or []), key=total_of, reverse=True)
-    by_sig = _best_by_typing(ranked)
-    final = []; seen = set()
-    for m in list(preselected or []):
-        sig = typing_sig(m)
-        if by_sig.get(sig) is m and sig not in seen:
-            final.append(m); seen.add(sig)
-            if len(final)==K: return final
-    for m in sorted(by_sig.values(), key=total_of, reverse=True):
-        if len(final)==K: return final
-        sig = typing_sig(m)
-        if sig in seen: continue
-        final.append(m); seen.add(sig)
-    for m in ranked:
-        if len(final)==K: return final
-        if m in final: continue
-        final.append(m)
-    return final[:K]
-# ===== END PATCH HELPERS =====
 
 PERSIST_TO_DISK = False
 
@@ -1478,12 +1424,6 @@ def _best_unique_team(roster, K=6):
             return final
     return final[:K]
 
-def _typing_signature(mon):
-    t = mon.get("types") or []
-    t1 = normalize_type(t[0]) if len(t) > 0 else ""
-    t2 = normalize_type(t[1]) if len(t) > 1 else ""
-    return (t1, t2)
-
 def _best_by_typing(roster_list):
     best = {}
     for m in roster_list:
@@ -2098,15 +2038,16 @@ def available_species_entries() -> List[Tuple[str, str]]:
     - Preserve '[trade reward]' tag.
     - Hide Mew from Add list when disabled in Settings.
     """
-        # Guard: rebuild if species DB scope mismatches current setting
+    # Guard: rebuild if species DB scope mismatches current setting
     want = str(dex_max())
     if (STATE.get("meta", {}).get("species_scope") != want):
         base = build_state_from_web_cached(dex_max())
         STATE["moves_db"] = base["moves_db"]
         STATE["species_db"] = base["species_db"]
         STATE["meta"] = base.get("meta", {"species_scope": want})
-        
+
     catch_unlimited = bool(STATE.get("settings", {}).get("catch_unlimited", False))
+    # (rest of your function stays exactly as you have it)
 
     # Collapse roster to base
     rcounts: Dict[str, int] = {}
@@ -2926,3 +2867,6 @@ def _run_router():
     # Route exactly one page per run
     fn = next(fn for pid, _, fn in pages if pid == (ui.get("page") or sel_id))
     fn()
+    
+# ========= start app =========
+_run_router()
