@@ -1557,53 +1557,66 @@ def trainer_class_from_label(label: str) -> str:
 
 # You MUST point this to where your FRLG trainer PNGs live.
 # Example: static hosting with files named exactly like the values below.
-FRLG_TRAINER_SPRITE_BASE = "https://your.cdn.example.com/frlg/trainers"
+FRLG_TRAINER_SPRITE_BASE = (
+    "https://raw.githubusercontent.com/PokeAPI/sprites/master/"
+    "sprites/trainers"
+)
 
+# Use Pokémon Showdown trainer sprites (public, stable sprite repo).
+# They live at: https://play.pokemonshowdown.com/sprites/trainers
+# Filenames are simple "<number>.png" where the number is an avatar ID.
+FRLG_TRAINER_SPRITE_BASE = "https://play.pokemonshowdown.com/sprites/trainers"
+
+# Map your trainer “classes” to some avatar IDs.
+# These IDs are just chosen examples that will resolve to *a* sprite;
+# if you care which avatar is which, open the URL in a browser and adjust.
 FRLG_TRAINER_SPRITES = {
     # Generic fallback
-    "Trainer": "trainer.png",
+    "Trainer": "1.png",
+
     # Common generic classes
-    "Rival": "rival.png",
-    "Champion": "champion.png",
-    "Team Rocket Grunt": "team_rocket_grunt.png",
-    "Youngster": "youngster.png",
-    "Bug Catcher": "bug_catcher.png",
-    "Lass": "lass.png",
-    "Camper": "camper.png",
-    "Picnicker": "picnicker.png",
-    "Fisherman": "fisherman.png",
-    "Hiker": "hiker.png",
-    "Sailor": "sailor.png",
-    "Bird Keeper": "bird_keeper.png",
-    "Blackbelt": "blackbelt.png",
-    "Beauty": "beauty.png",
-    "Psychic": "psychic.png",
-    "Scientist": "scientist.png",
-    "Pokémaniac": "pokemaniac.png",
-    "Super Nerd": "super_nerd.png",
-    "Juggler": "juggler.png",
-    "Tamer": "tamer.png",
-    "Gambler": "gambler.png",
-    "Cue Ball": "cue_ball.png",
-    "Rocker": "rocker.png",
-    "Biker": "biker.png",
-    "Cooltrainer♂": "cooltrainer_m.png",
-    "Cooltrainer♀": "cooltrainer_f.png",
-    "Swimmer♂": "swimmer_m.png",
-    "Swimmer♀": "swimmer_f.png",
-    # Gym Leaders / E4 — filenames depend on how you name your PNGs
-    "Gym Leader Brock": "brock.png",
-    "Gym Leader Misty": "misty.png",
-    "Gym Leader Lt. Surge": "lt_surge.png",
-    "Gym Leader Erika": "erika.png",
-    "Gym Leader Koga": "koga.png",
-    "Gym Leader Sabrina": "sabrina.png",
-    "Gym Leader Blaine": "blaine.png",
-    "Gym Leader Giovanni": "giovanni.png",
-    "Elite Four Lorelei": "lorelei.png",
-    "Elite Four Bruno": "bruno.png",
-    "Elite Four Agatha": "agatha.png",
-    "Elite Four Lance": "lance.png",
+    "Rival": "70.png",
+    "Champion": "71.png",
+    "Team Rocket Grunt": "54.png",
+    "Youngster": "1.png",
+    "Bug Catcher": "2.png",
+    "Lass": "3.png",
+    "Camper": "4.png",
+    "Picnicker": "5.png",
+    "Fisherman": "6.png",
+    "Hiker": "7.png",
+    "Sailor": "8.png",
+    "Bird Keeper": "9.png",
+    "Blackbelt": "10.png",
+    "Beauty": "11.png",
+    "Psychic": "12.png",
+    "Scientist": "13.png",
+    "Pokémaniac": "14.png",
+    "Super Nerd": "15.png",
+    "Juggler": "16.png",
+    "Tamer": "17.png",
+    "Gambler": "18.png",
+    "Cue Ball": "19.png",
+    "Rocker": "20.png",
+    "Biker": "21.png",
+    "Cooltrainer♂": "22.png",
+    "Cooltrainer♀": "23.png",
+    "Swimmer♂": "24.png",
+    "Swimmer♀": "25.png",
+
+    # Gym Leaders / E4 – pick any avatars you like here
+    "Gym Leader Brock": "26.png",
+    "Gym Leader Misty": "27.png",
+    "Gym Leader Lt. Surge": "28.png",
+    "Gym Leader Erika": "29.png",
+    "Gym Leader Koga": "30.png",
+    "Gym Leader Sabrina": "31.png",
+    "Gym Leader Blaine": "32.png",
+    "Gym Leader Giovanni": "33.png",
+    "Elite Four Lorelei": "34.png",
+    "Elite Four Bruno": "35.png",
+    "Elite Four Agatha": "36.png",
+    "Elite Four Lance": "37.png",
 }
 
 def trainer_sprite_url(label: str) -> Optional[str]:
@@ -2693,19 +2706,18 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
+                    # 1) Render the card visually
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+                    # 2) Separate button to select this Pokémon
                     if st.button(
-                        card_html,
+                        f"Select {species}",
                         key=f"opp_card_{selected_enc_idx}_{idx}",
                         help=f"Select {species}",
                     ):
                         STATE["last_battle_pick"] = [selected_enc_idx, idx]
                         save_state(STATE)
                         do_rerun()
-                    # This keeps the HTML rendered on the button label
-                    st.markdown(
-                        f"<style>button[kind='secondary'] div.{card_classes} {{ width: 100%; }}</style>",
-                        unsafe_allow_html=True,
-                    )
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
