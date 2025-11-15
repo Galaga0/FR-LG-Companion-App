@@ -1520,9 +1520,9 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Cue Ball", ["cue ball"]),
     ("Rocker", ["rocker"]),
     ("Biker", ["biker"]),
-    ("Cooltrainer♂", ["cooltrainer m", "cooltrainer♂", "cooltrainer (m)"]),
+    ("Cooltrainer♂", ["cooltrainer m", "cooltrainer♂", "cooltrainer (m)", "cooltrainer "]),
     ("Cooltrainer♀", ["cooltrainer f", "cooltrainer♀", "cooltrainer (f)"]),
-    ("Swimmer♂", ["swimmer m", "swimmer♂"]),
+    ("Swimmer♂", ["swimmer m", "swimmer♂", "swimmer "]),
     ("Swimmer♀", ["swimmer f", "swimmer♀"]),
     # Gym Leaders & E4 — labels in your sheet can be "Leader Brock", "Gym Brock", etc.
     ("Gym Leader Brock", ["brock"]),
@@ -2591,6 +2591,36 @@ def render_battle():
     if not STATE["opponents"]["encounters"]:
         st.error("Could not load opponents automatically.")
         return
+        # Handle card-click query params (?enc=X&mon=Y) to update selection
+        try:
+            qp = getattr(st, "query_params", None)
+            if qp is None:
+                qp = st.experimental_get_query_params()
+            enc_q = qp.get("enc")
+            mon_q = qp.get("mon")
+            if enc_q is not None or mon_q is not None:
+                enc_idx_raw = enc_q[0] if isinstance(enc_q, list) else enc_q
+                mon_idx_raw = mon_q[0] if isinstance(mon_q, list) else mon_q
+                enc_idx = int(enc_idx_raw or 0)
+                mon_idx = int(mon_idx_raw or 0)
+
+                enc_idx = max(0, min(enc_idx, len(STATE["opponents"]["encounters"]) - 1))
+                mon_list = STATE["opponents"]["encounters"][enc_idx].get("mons", []) or []
+                mon_idx = max(0, min(mon_idx, len(mon_list) - 1))
+
+                STATE["last_battle_pick"] = [enc_idx, mon_idx]
+                save_state(STATE)
+
+                # Clear the params again to keep the URL clean
+                try:
+                    if hasattr(st, "query_params"):
+                        st.query_params.clear()
+                    else:
+                    st.experimental_set_query_params()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     # Pick trainer + mon (instant updates; no form, no button)
     enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
@@ -2624,23 +2654,19 @@ def render_battle():
     if not mons:
         st.caption("Trainer has no Pokémon.")
     else:
-        # Layout rules: max 2 rows
-        # 1–3: single row
-        # 4:   2 top, 2 bottom
-        # 5:   2 top, 3 bottom
-        # 6+:  3 top, rest bottom (FRLG shouldn’t exceed 6 anyway)
+        # Layout: up to 6 cards total, 3 per row (top row first)
+        mon_count = len(mons)
+        card_idx = 0
+
+        # For 1–3: single row. For 4–6: 3 on top, rest on bottom.
         if mon_count <= 3:
             row_layout = [mon_count]
-        elif mon_count == 4:
-            row_layout = [2, 2]
-        elif mon_count == 5:
-            row_layout = [2, 3]
         else:
-            row_layout = [3, mon_count - 3]
-
-        card_idx = 0
-        # Snapshot current query params once; we’ll reuse them when building links
-        base_qs = dict(st.query_params)
+            top = min(3, mon_count)
+            bottom = mon_count - top
+            row_layout = [top]
+            if bottom > 0:
+                row_layout.append(min(3, bottom))
 
         for row_cols in row_layout:
             if card_idx >= mon_count:
@@ -2690,34 +2716,26 @@ def render_battle():
 
                 style = f"--opp-bg1:{g1};--opp-bg2:{g2};"
 
-                # Build HTML card (no link; click handled via Streamlit button)
+                # Build HTML card as a link that updates ?enc=...&mon=...
+                href = f"?enc={selected_enc_idx}&mon={idx}"
                 card_html = f"""
-                  <div class="{card_classes}" style="{style}">
-                    <div class="opp-card-sprite">{sprite_html}</div>
-                    <div class="opp-card-main">
-                      <div class="opp-card-name">{species} • Lv{level}</div>
-                      <div class="opp-card-types">{type_text}</div>
-                      <div class="opp-card-total">Total: {total}</div>
-                      <div class="opp-card-moves">
-                        <span class="opp-card-moves-label">Moves:</span> {moves_txt}
+                  <a href="{href}" style="text-decoration:none;">
+                    <div class="{card_classes}" style="{style}">
+                      <div class="opp-card-sprite">{sprite_html}</div>
+                      <div class="opp-card-main">
+                        <div class="opp-card-name">{species} • Lv{level}</div>
+                        <div class="opp-card-types">{type_text}</div>
+                        <div class="opp-card-total">Total: {total}</div>
+                        <div class="opp-card-moves">
+                          <span class="opp-card-moves-label">Moves:</span> {moves_txt}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </a>
                 """
 
                 with cols[col_pos]:
-                    # 1) Render the card visually
                     st.markdown(card_html, unsafe_allow_html=True)
-
-                    # 2) Separate button to select this Pokémon
-                    if st.button(
-                        f"Select {species}",
-                        key=f"opp_card_{selected_enc_idx}_{idx}",
-                        help=f"Select {species}",
-                    ):
-                        STATE["last_battle_pick"] = [selected_enc_idx, idx]
-                        save_state(STATE)
-                        do_rerun()
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
