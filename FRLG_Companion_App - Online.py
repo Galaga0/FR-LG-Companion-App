@@ -1490,57 +1490,133 @@ def sprite_img_html(name: str, size: int = None) -> str:
         f'width="{s}" height="{s}" alt="{safe_name} sprite"/>'
     )
 
-# === Trainer sprites (opponent) ===
+# === Trainer sprites (opponent, FRLG style) ===
 
 TRAINER_SPRITE_SIZE = SPRITE_SIZE  # keep same base size
 
+# Canonical FRLG trainer classes and how to detect them from a sheet label
+FRLG_TRAINER_CLASS_KEYWORDS = [
+    ("Rival", ["rival", "blue", "gary"]),
+    ("Champion", ["champion"]),
+    ("Team Rocket Grunt", ["rocket grunt", "rocket", "grunt"]),
+    ("Youngster", ["youngster"]),
+    ("Bug Catcher", ["bug catcher"]),
+    ("Lass", ["lass"]),
+    ("Camper", ["camper"]),
+    ("Picnicker", ["picnicker"]),
+    ("Fisherman", ["fisher", "fisherman"]),
+    ("Hiker", ["hiker"]),
+    ("Sailor", ["sailor"]),
+    ("Bird Keeper", ["bird keeper"]),
+    ("Blackbelt", ["blackbelt", "black belt"]),
+    ("Beauty", ["beauty"]),
+    ("Psychic", ["psychic"]),
+    ("Scientist", ["scientist"]),
+    ("Pokémaniac", ["pokémaniac", "pokemaniac"]),
+    ("Super Nerd", ["super nerd"]),
+    ("Juggler", ["juggler"]),
+    ("Tamer", ["tamer"]),
+    ("Gambler", ["gambler", "gamer"]),
+    ("Cue Ball", ["cue ball"]),
+    ("Rocker", ["rocker"]),
+    ("Biker", ["biker"]),
+    ("Cooltrainer♂", ["cooltrainer m", "cooltrainer♂", "cooltrainer (m)"]),
+    ("Cooltrainer♀", ["cooltrainer f", "cooltrainer♀", "cooltrainer (f)"]),
+    ("Swimmer♂", ["swimmer m", "swimmer♂"]),
+    ("Swimmer♀", ["swimmer f", "swimmer♀"]),
+    # Gym Leaders & E4 — labels in your sheet can be "Leader Brock", "Gym Brock", etc.
+    ("Gym Leader Brock", ["brock"]),
+    ("Gym Leader Misty", ["misty"]),
+    ("Gym Leader Lt. Surge", ["lt surge", "lt. surge"]),
+    ("Gym Leader Erika", ["erika"]),
+    ("Gym Leader Koga", ["koga"]),
+    ("Gym Leader Sabrina", ["sabrina"]),
+    ("Gym Leader Blaine", ["blaine"]),
+    ("Gym Leader Giovanni", ["giovanni"]),
+    ("Elite Four Lorelei", ["lorelei"]),
+    ("Elite Four Bruno", ["bruno"]),
+    ("Elite Four Agatha", ["agatha"]),
+    ("Elite Four Lance", ["lance"]),
+]
+
 @st.cache_data(show_spinner=False)
-def trainer_slug_from_label(label: str) -> str:
+def trainer_class_from_label(label: str) -> str:
     """
-    Heuristic: extract a trainer class from label like 'Youngster Joey #2' -> 'youngster',
-    'Lass Ann' -> 'lass', 'Team Rocket Grunt' -> 'rocket-grunt', etc.
-    You can refine this mapping later if you want 100% control.
+    Map a sheet label like 'Youngster Joey #2' or 'Rocket Grunt 3'
+    to a canonical FRLG trainer class string.
     """
-    if not label:
-        return "trainer"
+    s = (label or "").lower()
+    for cls, keys in FRLG_TRAINER_CLASS_KEYWORDS:
+        if any(k in s for k in keys):
+            return cls
+    # Fallback: first word as a generic class
+    tokens = s.split()
+    if not tokens:
+        return "Trainer"
+    return tokens[0].capitalize()
 
-    s = label.lower()
-    # very rough mapping, tweak as needed for your sheet labels
-    if "rival" in s or "blue" in s or "gary" in s:
-        return "rival"
-    if "leader" in s or "gym" in s:
-        return "leader"
-    if "rocket" in s:
-        return "rocket-grunt"
-    if "elite" in s:
-        return "elite-four"
-    if "champion" in s:
-        return "champion"
-    if "lass" in s:
-        return "lass"
-    if "youngster" in s:
-        return "youngster"
-    if "fisher" in s:
-        return "fisherman"
-    if "bug catcher" in s:
-        return "bug-catcher"
+# You MUST point this to where your FRLG trainer PNGs live.
+# Example: static hosting with files named exactly like the values below.
+FRLG_TRAINER_SPRITE_BASE = "https://your.cdn.example.com/frlg/trainers"
 
-    # fallback: first word as class
-    first = s.split()[0]
-    return re.sub(r"[^a-z0-9]+", "-", first) or "trainer"
+FRLG_TRAINER_SPRITES = {
+    # Generic fallback
+    "Trainer": "trainer.png",
+    # Common generic classes
+    "Rival": "rival.png",
+    "Champion": "champion.png",
+    "Team Rocket Grunt": "team_rocket_grunt.png",
+    "Youngster": "youngster.png",
+    "Bug Catcher": "bug_catcher.png",
+    "Lass": "lass.png",
+    "Camper": "camper.png",
+    "Picnicker": "picnicker.png",
+    "Fisherman": "fisherman.png",
+    "Hiker": "hiker.png",
+    "Sailor": "sailor.png",
+    "Bird Keeper": "bird_keeper.png",
+    "Blackbelt": "blackbelt.png",
+    "Beauty": "beauty.png",
+    "Psychic": "psychic.png",
+    "Scientist": "scientist.png",
+    "Pokémaniac": "pokemaniac.png",
+    "Super Nerd": "super_nerd.png",
+    "Juggler": "juggler.png",
+    "Tamer": "tamer.png",
+    "Gambler": "gambler.png",
+    "Cue Ball": "cue_ball.png",
+    "Rocker": "rocker.png",
+    "Biker": "biker.png",
+    "Cooltrainer♂": "cooltrainer_m.png",
+    "Cooltrainer♀": "cooltrainer_f.png",
+    "Swimmer♂": "swimmer_m.png",
+    "Swimmer♀": "swimmer_f.png",
+    # Gym Leaders / E4 — filenames depend on how you name your PNGs
+    "Gym Leader Brock": "brock.png",
+    "Gym Leader Misty": "misty.png",
+    "Gym Leader Lt. Surge": "lt_surge.png",
+    "Gym Leader Erika": "erika.png",
+    "Gym Leader Koga": "koga.png",
+    "Gym Leader Sabrina": "sabrina.png",
+    "Gym Leader Blaine": "blaine.png",
+    "Gym Leader Giovanni": "giovanni.png",
+    "Elite Four Lorelei": "lorelei.png",
+    "Elite Four Bruno": "bruno.png",
+    "Elite Four Agatha": "agatha.png",
+    "Elite Four Lance": "lance.png",
+}
 
 def trainer_sprite_url(label: str) -> Optional[str]:
     """
-    Return a trainer sprite URL based on their label/class.
-    This uses a generic Gen 3-ish trainer sprite set; adjust path if you have your own.
+    Return a FRLG-style trainer sprite URL based on their label/class.
+    This assumes you have Gen 3 FRLG trainer PNGs hosted under
+    FRLG_TRAINER_SPRITE_BASE using the filenames in FRLG_TRAINER_SPRITES.
     """
-    slug = trainer_slug_from_label(label)
-    base = (
-        "https://raw.githubusercontent.com/bolu32/pokeemerald-expansion-sprites/main/trainers"
-    )
-    # You may need to align slug → actual filenames in your sprite source.
-    return f"{base}/{slug}.png"
-
+    cls = trainer_class_from_label(label)
+    filename = FRLG_TRAINER_SPRITES.get(cls) or FRLG_TRAINER_SPRITES.get("Trainer")
+    if not filename or not FRLG_TRAINER_SPRITE_BASE:
+        return None
+    return f"{FRLG_TRAINER_SPRITE_BASE}/{filename}"
 
 def trainer_sprite_img_html(label: str, size: int = None) -> str:
     url = trainer_sprite_url(label)
@@ -2654,13 +2730,14 @@ def render_battle():
     opp_pairs = list(opmon.get("moves", []))
     opp_total = int(opmon.get("total", 0))
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
-    # No separate header line here — all details now live in the cards.
+    # No separate text header here; trainer + sprite + actions are below.
 
-# Trainer sprite header
+    # Trainer sprite header
     trainer_label = enc.get("label", "?")
     trainer_html = trainer_sprite_img_html(trainer_label, size=TRAINER_SPRITE_SIZE)
     if trainer_html:
         st.markdown(trainer_html, unsafe_allow_html=True)
+
     b1, b2 = st.columns(2)
     if b1.button("✅ Beat Pokémon (remove just this one)"):
         try:
