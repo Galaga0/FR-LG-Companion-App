@@ -2874,6 +2874,8 @@ def render_saveload():
             STATE.setdefault("ui", {})["page"] = "saveload"
             save_state(STATE)
             st.rerun()
+        except Exception as e:
+            st.error(f"Failed to load save.json: {e}")
 
 def evo_badge(label: str, color: str) -> str:
     return f'<span style="display:inline-block;padding:2px 8px;border-radius:9999px;border:1px solid rgba(0,0,0,.1);background:{color};color:white;font-size:12px;">{label}</span>'
