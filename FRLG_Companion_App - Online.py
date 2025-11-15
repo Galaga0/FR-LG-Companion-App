@@ -310,6 +310,63 @@ st.markdown("""
   .moves-grid th, .moves-grid td { color: #111 !important; }
   .moves-grid th, .moves-grid td { border-bottom-color: var(--grid-underline-light) !important; }
 }
+/* Opponent Pokémon cards on Battle page */
+.opp-card {
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148,163,184,.7);
+  margin-bottom: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: radial-gradient(circle at top left,
+    rgba(148,163,184,0.22),
+    rgba(15,23,42,0.0)
+  );
+}
+
+.opp-card-selected {
+  border-color: rgba(56,189,248,1);
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.8);
+  background: radial-gradient(circle at top left,
+    rgba(56,189,248,0.28),
+    rgba(15,23,42,0.0)
+  );
+}
+
+.opp-card-sprite img {
+  image-rendering: pixelated;
+}
+
+.opp-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.opp-card-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.opp-card-types {
+  opacity: 0.92;
+}
+
+.opp-card-total {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.opp-card-moves {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.opp-card-moves-label {
+  font-weight: 600;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2341,25 +2398,76 @@ def render_battle():
         save_state(STATE)
         do_rerun()
 
-    enc = STATE["opponents"]["encounters"][selected_enc_idx]
-    mon_labels = [
-        f"{i+1}. {m['species']} Lv{m['level']} (Total {m.get('total', 0)})"
-        for i, m in enumerate(enc["mons"])
-    ]
+        enc = STATE["opponents"]["encounters"][selected_enc_idx]
+    mons = enc.get("mons", []) or []
+    mon_count = len(mons)
 
-    cur_mon_idx = max(
-        0,
-        min(STATE.get("last_battle_pick", [0, 0])[1], len(mon_labels) - 1),
-    ) if mon_labels else 0
-    pick_mon = st.selectbox(
-        "Their Pokémon", mon_labels, index=cur_mon_idx, key=f"battle_mon_select_{selected_enc_idx}"
-    )
+    # Current selected mon index from state (for highlight)
+    cur_mon_idx = 0
+    if mon_count:
+        cur_mon_idx = max(
+            0,
+            min(STATE.get("last_battle_pick", [0, 0])[1], mon_count - 1),
+        )
 
-    selected_mon_idx = mon_labels.index(pick_mon) if mon_labels else 0
-    if selected_mon_idx != cur_mon_idx:
-        STATE["last_battle_pick"] = [selected_enc_idx, selected_mon_idx]
-        save_state(STATE)
-        do_rerun()
+    st.markdown("**Their Pokémon**")
+    if not mons:
+        st.caption("Trainer has no Pokémon.")
+    else:
+        # Arrange cards in up to 3 columns
+        ncols = min(3, mon_count)
+        cols = st.columns(ncols)
+
+        for idx, mon in enumerate(mons):
+            col = cols[idx % ncols]
+            is_selected = (idx == cur_mon_idx)
+            card_classes = "opp-card opp-card-selected" if is_selected else "opp-card"
+
+            species = mon.get("species", "?")
+            level = int(mon.get("level", 1))
+            total = int(mon.get("total", 0))
+
+            types_pair = purge_fairy_types_pair(mon.get("types") or [])
+            t1, t2 = types_pair[0], types_pair[1]
+
+            # Type display string
+            if t1:
+                type_text = f"{type_emoji(t1)} {t1}"
+            else:
+                type_text = "—"
+            if t2:
+                type_text += f" / {t2}"
+
+            moves = mon.get("moves") or []
+            moves_txt = ", ".join([f"{mv} ({tp})" for mv, tp in moves]) if moves else "—"
+
+            sprite_html = sprite_img_html(species, size=112)
+
+            card_html = f"""
+            <div class="{card_classes}">
+              <div class="opp-card-sprite">{sprite_html}</div>
+              <div class="opp-card-main">
+                <div class="opp-card-name">{species} • Lv{level}</div>
+                <div class="opp-card-types">{type_text}</div>
+                <div class="opp-card-total">Total: {total}</div>
+                <div class="opp-card-moves">
+                  <span class="opp-card-moves-label">Moves:</span> {moves_txt}
+                </div>
+              </div>
+            </div>
+            """
+
+            with col:
+                st.markdown(card_html, unsafe_allow_html=True)
+                # Button that selects this card; gradient shows which one is active
+                if st.button(
+                    "Select",
+                    key=f"opp_card_{selected_enc_idx}_{idx}",
+                    use_container_width=True,
+                ):
+                    STATE["last_battle_pick"] = [selected_enc_idx, idx]
+                    save_state(STATE)
+                    do_rerun()
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
