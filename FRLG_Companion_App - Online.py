@@ -128,7 +128,7 @@ def is_base_name_151(name: str) -> bool:
 import streamlit as st
 from typing import List, Dict, Tuple, Optional
 import json, os, urllib.request, ssl, re, csv, uuid
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlencode
 
 # --- Session persistence mode ---
 # Default: ephemeral (no disk writes, fresh state per browser session)
@@ -312,6 +312,10 @@ st.markdown("""
 }
 /* Opponent Pokémon cards on Battle page */
 .opp-card {
+  /* default gradient, can be overridden per-card via inline CSS vars */
+  --opp-bg1: rgba(148,163,184,0.22);
+  --opp-bg2: rgba(15,23,42,0.0);
+
   border-radius: 14px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
@@ -319,19 +323,47 @@ st.markdown("""
   display: flex;
   gap: 10px;
   align-items: center;
-  background: radial-gradient(circle at top left,
-    rgba(148,163,184,0.22),
-    rgba(15,23,42,0.0)
-  );
+  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2));
+  cursor: pointer;
 }
 
 .opp-card-selected {
   border-color: rgba(56,189,248,1);
   box-shadow: 0 0 0 1px rgba(56,189,248,0.8);
-  background: radial-gradient(circle at top left,
-    rgba(56,189,248,0.28),
-    rgba(15,23,42,0.0)
-  );
+}
+
+.opp-card-sprite img {
+  image-rendering: pixelated;
+}
+
+.opp-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.opp-card-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.opp-card-types {
+  opacity: 0.92;
+}
+
+.opp-card-total {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.opp-card-moves {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.opp-card-moves-label {
+  font-weight: 600;
 }
 
 .opp-card-sprite img {
@@ -383,6 +415,28 @@ TYPE_EMOJI = {
     "Fighting":"🥊","Poison":"☠️","Ground":"⛰️","Flying":"🪽","Psychic":"🔮",
     "Bug":"🐛","Rock":"🪨","Ghost":"👻","Dragon":"🐉","Dark":"🌑","Steel":"⚙️"
 }
+
+# Soft gradients per primary type for opponent cards
+TYPE_GRADIENT = {
+    "Fire":     ("rgba(248,113,113,0.32)", "rgba(15,23,42,0.0)"),
+    "Water":    ("rgba(59,130,246,0.32)",  "rgba(15,23,42,0.0)"),
+    "Electric": ("rgba(234,179,8,0.32)",   "rgba(15,23,42,0.0)"),
+    "Grass":    ("rgba(52,211,153,0.32)",  "rgba(15,23,42,0.0)"),
+    "Ice":      ("rgba(125,211,252,0.32)", "rgba(15,23,42,0.0)"),
+    "Fighting": ("rgba(248,113,113,0.32)", "rgba(15,23,42,0.0)"),
+    "Poison":   ("rgba(192,132,252,0.32)", "rgba(15,23,42,0.0)"),
+    "Ground":   ("rgba(234,179,8,0.32)",   "rgba(15,23,42,0.0)"),
+    "Flying":   ("rgba(129,140,248,0.32)", "rgba(15,23,42,0.0)"),
+    "Psychic":  ("rgba(244,114,182,0.32)", "rgba(15,23,42,0.0)"),
+    "Bug":      ("rgba(132,204,22,0.32)",  "rgba(15,23,42,0.0)"),
+    "Rock":     ("rgba(251,191,36,0.32)",  "rgba(15,23,42,0.0)"),
+    "Ghost":    ("rgba(129,140,248,0.32)", "rgba(15,23,42,0.0)"),
+    "Dragon":   ("rgba(96,165,250,0.32)",  "rgba(15,23,42,0.0)"),
+    "Dark":     ("rgba(55,65,81,0.50)",    "rgba(15,23,42,0.0)"),
+    "Steel":    ("rgba(148,163,184,0.40)", "rgba(15,23,42,0.0)"),
+}
+
+DEFAULT_CARD_GRADIENT = ("rgba(148,163,184,0.22)", "rgba(15,23,42,0.0)")
 
 # Global sprite size (px) so every sprite uses the same visual size
 SPRITE_SIZE = 72
@@ -2404,6 +2458,33 @@ def render_battle():
     mons = enc.get("mons", []) or []
     mon_count = len(mons)
 
+    # If user clicked a card (?battle_mon=idx), sync it into state
+    try:
+        qp_val = st.query_params.get("battle_mon")
+        if qp_val is not None:
+            if isinstance(qp_val, list):
+                raw_idx = qp_val[0]
+            else:
+                raw_idx = qp_val
+            mi = int(raw_idx)
+            if mon_count:
+                mi = max(0, min(mi, mon_count - 1))
+            else:
+                mi = 0
+
+            lbp = STATE.get("last_battle_pick", [0, 0])
+            if lbp[0] != selected_enc_idx or lbp[1] != mi:
+                STATE["last_battle_pick"] = [selected_enc_idx, mi]
+                save_state(STATE)
+
+            # clear battle_mon from URL so it doesn't keep re-triggering
+            qp = dict(st.query_params)
+            qp.pop("battle_mon", None)
+            st.query_params.clear()
+            st.query_params.update(qp)
+    except Exception:
+        pass
+
     # Current selected mon index from state (for highlight)
     cur_mon_idx = 0
     if mon_count:
@@ -2416,60 +2497,86 @@ def render_battle():
     if not mons:
         st.caption("Trainer has no Pokémon.")
     else:
-        # Arrange cards in up to 3 columns
-        ncols = min(3, mon_count)
-        cols = st.columns(ncols)
+        # Layout rules: max 2 rows
+        # 1–3: single row
+        # 4:   2 top, 2 bottom
+        # 5:   2 top, 3 bottom
+        # 6+:  3 top, rest bottom (FRLG shouldn’t exceed 6 anyway)
+        if mon_count <= 3:
+            row_layout = [mon_count]
+        elif mon_count == 4:
+            row_layout = [2, 2]
+        elif mon_count == 5:
+            row_layout = [2, 3]
+        else:
+            row_layout = [3, mon_count - 3]
 
-        for idx, mon in enumerate(mons):
-            col = cols[idx % ncols]
-            is_selected = (idx == cur_mon_idx)
-            card_classes = "opp-card opp-card-selected" if is_selected else "opp-card"
+        card_idx = 0
+        # Snapshot current query params once; we’ll reuse them when building links
+        base_qs = dict(st.query_params)
 
-            species = mon.get("species", "?")
-            level = int(mon.get("level", 1))
-            total = int(mon.get("total", 0))
+        for row_cols in row_layout:
+            if card_idx >= mon_count:
+                break
+            cols = st.columns(row_cols)
+            for col_pos in range(row_cols):
+                if card_idx >= mon_count:
+                    break
 
-            types_pair = purge_fairy_types_pair(mon.get("types") or [])
-            t1, t2 = types_pair[0], types_pair[1]
+                mon = mons[card_idx]
+                idx = card_idx
+                card_idx += 1
 
-            # Type display string
-            if t1:
-                type_text = f"{type_emoji(t1)} {t1}"
-            else:
-                type_text = "—"
-            if t2:
-                type_text += f" / {t2}"
+                is_selected = (idx == cur_mon_idx)
+                card_classes = "opp-card opp-card-selected" if is_selected else "opp-card"
 
-            moves = mon.get("moves") or []
-            moves_txt = ", ".join([f"{mv} ({tp})" for mv, tp in moves]) if moves else "—"
+                species = mon.get("species", "?")
+                level = int(mon.get("level", 1))
+                total = int(mon.get("total", 0))
 
-            sprite_html = sprite_img_html(species, size=112)
+                types_pair = purge_fairy_types_pair(mon.get("types") or [])
+                t1, t2 = types_pair[0], types_pair[1]
 
-            card_html = f"""
-            <div class="{card_classes}">
-              <div class="opp-card-sprite">{sprite_html}</div>
-              <div class="opp-card-main">
-                <div class="opp-card-name">{species} • Lv{level}</div>
-                <div class="opp-card-types">{type_text}</div>
-                <div class="opp-card-total">Total: {total}</div>
-                <div class="opp-card-moves">
-                  <span class="opp-card-moves-label">Moves:</span> {moves_txt}
-                </div>
-              </div>
-            </div>
-            """
+                # Type display string
+                if t1:
+                    type_text = f"{type_emoji(t1)} {t1}"
+                else:
+                    type_text = "—"
+                if t2:
+                    type_text += f" / {t2}"
 
-            with col:
-                st.markdown(card_html, unsafe_allow_html=True)
-                # Button that selects this card; gradient shows which one is active
-                if st.button(
-                    "Select",
-                    key=f"opp_card_{selected_enc_idx}_{idx}",
-                    use_container_width=True,
-                ):
-                    STATE["last_battle_pick"] = [selected_enc_idx, idx]
-                    save_state(STATE)
-                    do_rerun()
+                moves = mon.get("moves") or []
+                moves_txt = ", ".join([f"{mv} ({tp})" for mv, tp in moves]) if moves else "—"
+
+                sprite_html = sprite_img_html(species, size=112)
+
+                primary_type = normalize_type(t1) or normalize_type(t2) or ""
+                g1, g2 = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+                style = f"--opp-bg1:{g1};--opp-bg2:{g2};"
+
+                # Build link that selects this mon via ?battle_mon=idx
+                qs = dict(base_qs)
+                qs["battle_mon"] = str(idx)
+                href = "?" + urlencode(qs, doseq=True)
+
+                card_html = f"""
+                <a href="{href}" style="text-decoration:none;">
+                  <div class="{card_classes}" style="{style}">
+                    <div class="opp-card-sprite">{sprite_html}</div>
+                    <div class="opp-card-main">
+                      <div class="opp-card-name">{species} • Lv{level}</div>
+                      <div class="opp-card-types">{type_text}</div>
+                      <div class="opp-card-total">Total: {total}</div>
+                      <div class="opp-card-moves">
+                        <span class="opp-card-moves-label">Moves:</span> {moves_txt}
+                      </div>
+                    </div>
+                  </div>
+                </a>
+                """
+
+                with cols[col_pos]:
+                    st.markdown(card_html, unsafe_allow_html=True)
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
@@ -2494,15 +2601,7 @@ def render_battle():
     opp_pairs = list(opmon.get("moves", []))
     opp_total = int(opmon.get("total", 0))
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
-
-    opp_sprite_html = sprite_img_html(opmon.get("species", "?"))
-    header_html = (
-        f"{opp_sprite_html}"
-        f"<strong>Opponent:</strong> {opp_label} | "
-        f"Types: {t1 or '—'} / {t2 or '—'} | "
-        f"Total: {opp_total} | Moves: {moves_str}"
-    )
-    st.markdown(header_html, unsafe_allow_html=True)
+    # No separate header line here — all details now live in the cards.
 
     b1, b2 = st.columns(2)
     if b1.button("✅ Beat Pokémon (remove just this one)"):
