@@ -443,6 +443,7 @@ DEFAULT_CARD_GRADIENT = ("rgba(148,163,184,0.80)", "rgba(75,85,99,0.70)")
 
 # Global sprite size (px) so every sprite uses the same visual size
 SPRITE_SIZE = 96
+TRAINER_SPRITE_SIZE = 128
 
 def type_emoji(t: Optional[str]) -> str:
     return TYPE_EMOJI.get(normalize_type(t) or "", "❔")
@@ -1543,8 +1544,19 @@ TRAINER_SPRITE_SIZE = SPRITE_SIZE  # keep same base size
 # Canonical FRLG trainer classes and how to detect them from a sheet label
 FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Rival", ["rival", "blue", "gary"]),
-    ("Champion", ["champion"]),
-    ("Team Rocket Grunt", ["rocket grunt", "rocket", "grunt"]),
+    ("Champion", ["champion "]),  # space avoids matching 'champion 2' as a class name
+
+    # Very specific classes first to avoid mis-hits
+    ("Team Rocket Grunt", ["rocket grunt", "rocket gr.", "rocket  "]),
+    ("Team Rocket Grunt", ["rocket", "grunt"]),  # generic rocket/grunt
+
+    ("Scientist", ["scientist", "gideon"]),  # Gideon should be Scientist
+
+    # Gendered classes (we refine later)
+    ("Cooltrainer", ["cooltrainer"]),
+    ("Swimmer", ["swimmer"]),
+
+    # Common basic overworld classes
     ("Youngster", ["youngster"]),
     ("Bug Catcher", ["bug catcher"]),
     ("Lass", ["lass"]),
@@ -1557,7 +1569,6 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Blackbelt", ["blackbelt", "black belt"]),
     ("Beauty", ["beauty"]),
     ("Psychic", ["psychic"]),
-    ("Scientist", ["scientist"]),
     ("Pokémaniac", ["pokémaniac", "pokemaniac"]),
     ("Super Nerd", ["super nerd"]),
     ("Juggler", ["juggler"]),
@@ -1566,11 +1577,8 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Cue Ball", ["cue ball"]),
     ("Rocker", ["rocker"]),
     ("Biker", ["biker"]),
-    ("Cooltrainer♂", ["cooltrainer m", "cooltrainer♂", "cooltrainer (m)", "cooltrainer "]),
-    ("Cooltrainer♀", ["cooltrainer f", "cooltrainer♀", "cooltrainer (f)"]),
-    ("Swimmer♂", ["swimmer m", "swimmer♂", "swimmer "]),
-    ("Swimmer♀", ["swimmer f", "swimmer♀"]),
-    # Gym Leaders & E4 — labels in your sheet can be "Leader Brock", "Gym Brock", etc.
+
+    # Gym Leaders & E4 – same as before
     ("Gym Leader Brock", ["brock"]),
     ("Gym Leader Misty", ["misty"]),
     ("Gym Leader Lt. Surge", ["lt surge", "lt. surge"]),
@@ -1590,16 +1598,63 @@ def trainer_class_from_label(label: str) -> str:
     """
     Map a sheet label like 'Youngster Joey #2' or 'Rocket Grunt 3'
     to a canonical FRLG trainer class string.
+    Adds gender detection for Cooltrainer & Swimmer based on name.
     """
     s = (label or "").lower()
+    base_label = s
+
+    # 1) Base class from keyword table
+    base_cls = None
     for cls, keys in FRLG_TRAINER_CLASS_KEYWORDS:
-        if any(k in s for k in keys):
-            return cls
-    # Fallback: first word as a generic class
-    tokens = s.split()
-    if not tokens:
-        return "Trainer"
-    return tokens[0].capitalize()
+        if any(k in base_label for k in keys):
+            base_cls = cls
+            break
+
+    # 2) If no match, fallback to "Trainer"
+    if not base_cls:
+        tokens = base_label.split()
+        if not tokens:
+            return "Trainer"
+        return tokens[0].capitalize()
+
+    # 3) Refine gendered classes based on name
+    if base_cls in ("Cooltrainer", "Swimmer"):
+        # Try to extract the "name" token after the class word
+        # e.g. "Cooltrainer Leroy #2" → "leroy"
+        parts = base_label.replace("#", " ").split()
+        try:
+            idx = parts.index(base_cls.lower())
+        except ValueError:
+            idx = None
+
+        name_token = None
+        if idx is not None and idx + 1 < len(parts):
+            name_token = parts[idx + 1]
+
+        # crude gender detection by ending; better than nothing and works for Leroy / Michelle
+        female_markers = {"michelle", "anna", "jessica", "sarah", "amber", "megan", "linda", "f", "♀"}
+        male_markers = {"leroy", "kevin", "mark", "gary", "john", "m", "♂"}
+
+        cls_m = base_cls + "♂"
+        cls_f = base_cls + "♀"
+
+        if name_token:
+            n = name_token.strip(",.").lower()
+            if n in female_markers:
+                return cls_f
+            if n in male_markers:
+                return cls_m
+
+        # Fallback based on explicit 'F' or 'M' in the label text
+        if any(tok in base_label for tok in (" f ", "(f)", "♀")):
+            return cls_f
+        if any(tok in base_label for tok in (" m ", "(m)", "♂")):
+            return cls_m
+
+        # Default: male, because that’s the more common sprite
+        return cls_m
+
+    return base_cls
 
 # Use Bulbagarden Archives FRLG trainer sprites.
 # We go through Special:FilePath so we don't need the hashed upload path.
@@ -1668,20 +1723,42 @@ BLUE_SPRITE_VARIANTS: Dict[str, str] = {
     "blue3": "Spr FRLG Blue 3.png",
 }
 
+# Optional explicit overrides for known labels if the sheet ever changes wording
+BLUE_LABEL_OVERRIDES: Dict[str, str] = {
+    # keys are lowercase substrings in the *base_label* or label
+    # "ss anne rival" → Blue 2
+    "ss anne rival": "blue2",
+    "ss anne blue": "blue2",
+    # Champion fight(s)
+    "champion rival": "blue3",
+    "champion blue": "blue3",
+}
+
 
 def _blue_sprite_filename_for_meeting(label: str) -> Optional[str]:
     """
     Return the correct 'Spr FRLG Blue X.png' for this encounter label.
 
-    Meeting index counts *all* encounters in STATE['opponents']['encounters']
-    whose label/base_label contains 'rival', 'blue' or 'gary', in list order:
+    1) If the label matches a known override (SS Anne, Champion, etc.), use that.
+    2) Otherwise, count how many Blue/Rival encounters appear before this one
+       in STATE['opponents']['encounters'] and pick a sprite tier:
 
-      1–3  → Blue 1
-      4–7  → Blue 2
-      8–9+ → Blue 3  (Champion + stronger rematch, if present)
-
-    If the label isn't found or STATE['opponents'] is missing, returns None.
+         first 3 → Blue 1
+         next 4  → Blue 2
+         rest    → Blue 3
     """
+    label_str = str(label or "")
+    s_label = label_str.lower()
+
+    # 1) Explicit label overrides
+    try:
+        for key, variant in BLUE_LABEL_OVERRIDES.items():
+            if key in s_label:
+                return BLUE_SPRITE_VARIANTS.get(variant)
+    except Exception:
+        pass
+
+    # 2) Meeting index fallback based on encounter order
     try:
         encs = (STATE.get("opponents", {}) or {}).get("encounters", []) or []
     except Exception:
@@ -1690,16 +1767,14 @@ def _blue_sprite_filename_for_meeting(label: str) -> Optional[str]:
     meeting = 0
     for enc in encs:
         base = f"{enc.get('label','')} {enc.get('base_label','')}".lower()
-        # Same keyword logic you already use for is_rival_encounter
         if any(k in base for k in ("rival", "blue", "gary")):
             meeting += 1
-            if enc.get("label") == label:
+            if enc.get("label") == label_str:
                 if meeting <= 3:
                     return BLUE_SPRITE_VARIANTS["blue1"]
                 elif meeting <= 7:
                     return BLUE_SPRITE_VARIANTS["blue2"]
                 else:
-                    # Champion + post-game champion rematch (and anything beyond)
                     return BLUE_SPRITE_VARIANTS["blue3"]
 
     return None
@@ -1797,20 +1872,29 @@ def all_damaging_moves_sorted() -> List[str]:
     return sorted(allowed, key=lambda s: s.lower())
 
 def canonical_typed(move_name: str) -> Optional[Tuple[str, str]]:
+    """
+    Normalise a move name to (canonical_name, type).
+
+    - Filters out FRLG_EXCLUDE_MOVES.
+    - Only keeps damaging moves (per move_is_damaging).
+    - Does *not* require the move to already be in the global FRLG allowed set,
+      so opponent sheet moves are never silently dropped just because the
+      union hasn't seen them yet.
+    """
     nm = clean_move_token(move_name or "")
     if not nm or nm == "(none)":
         return None
+
     if nm.lower() in FRLG_EXCLUDE_MOVES:
         return None
-
-    # Only allow damaging moves that are legal for some FRLG species we know about
-    allowed = _frlg_allowed_damaging_moves_set()
 
     info = lookup_move(nm)
     canonical = (info.get("name") if info else nm)
     if canonical.lower() in FRLG_EXCLUDE_MOVES:
         return None
-    if canonical not in allowed:
+
+    # Only keep damaging moves
+    if not move_is_damaging(canonical):
         return None
 
     mtype = normalize_type(
@@ -1821,7 +1905,6 @@ def canonical_typed(move_name: str) -> Optional[Tuple[str, str]]:
         return None
 
     return (canonical, mtype)
-
 
 def get_prefill_moves(sp: Dict, level: int) -> List[str]:
     try:
@@ -2837,14 +2920,15 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
-                    # Make the whole card a clickable link that updates ?enc=..&mon=..
-                    href = f"?enc={selected_enc_idx}&mon={idx}"
-                    clickable_html = (
-                        f'<a href="{href}" style="text-decoration:none;color:inherit;">'
-                        f'{card_html}'
-                        f'</a>'
-                    )
-                    st.markdown(clickable_html, unsafe_allow_html=True)
+                    # Render the card and use a button to update the selected mon
+                    st.markdown(card_html, unsafe_allow_html=True)
+                    if st.button(
+                        "Select",
+                        key=f"opp_select_{selected_enc_idx}_{idx}",
+                    ):
+                        STATE["last_battle_pick"] = [selected_enc_idx, idx]
+                        save_state(STATE)
+                        do_rerun()
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
