@@ -442,7 +442,7 @@ TYPE_GRADIENT = {
 DEFAULT_CARD_GRADIENT = ("rgba(148,163,184,0.80)", "rgba(75,85,99,0.70)")
 
 # Global sprite size (px) so every sprite uses the same visual size
-SPRITE_SIZE = 72
+SPRITE_SIZE = 96
 
 def type_emoji(t: Optional[str]) -> str:
     return TYPE_EMOJI.get(normalize_type(t) or "", "❔")
@@ -1611,14 +1611,54 @@ FRLG_TRAINER_SPRITE_BASE = "https://archives.bulbagarden.net/wiki/Special:FilePa
 # as a safe generic fallback. If you want per-class sprites, add more entries
 # here with the exact Bulbagarden filenames.
 FRLG_TRAINER_SPRITES: Dict[str, str] = {
-    # Generic fallback if we can't figure anything out
+    # Generic fallback
     "Trainer":  "Spr FRLG Picnicker.png",
 
-    # Fallbacks for Blue if, for some reason, the special logic below can't
-    # find his meeting index. In normal use, the special logic will be used.
-    "Rival":    "Spr FRLG Blue 1.png",
-    "Champion": "Spr FRLG Blue 3.png",
-    # Add more specific classes here later if you want (Youngster, Bug Catcher, etc.)
+    # Common overworld classes
+    "Youngster":        "Spr FRLG Youngster.png",
+    "Bug Catcher":      "Spr FRLG Bug Catcher.png",
+    "Lass":             "Spr FRLG Lass.png",
+    "Camper":           "Spr FRLG Camper.png",
+    "Picnicker":        "Spr FRLG Picnicker.png",
+    "Hiker":            "Spr FRLG Hiker.png",
+    "Fisherman":        "Spr FRLG Fisherman.png",
+    "Sailor":           "Spr FRLG Sailor.png",
+    "Bird Keeper":      "Spr FRLG Bird Keeper.png",
+    "Blackbelt":        "Spr FRLG Black Belt.png",
+    "Beauty":           "Spr FRLG Beauty.png",
+    "Psychic":          "Spr FRLG Psychic.png",
+    "Scientist":        "Spr FRLG Scientist.png",
+    "Pokémaniac":       "Spr FRLG Pokemaniac.png",
+    "Super Nerd":       "Spr FRLG Super Nerd.png",
+    "Juggler":          "Spr FRLG Juggler.png",
+    "Tamer":            "Spr FRLG Tamer.png",
+    "Gambler":          "Spr FRLG Gambler.png",
+    "Cue Ball":         "Spr FRLG Cue Ball.png",
+    "Rocker":           "Spr FRLG Rocker.png",
+    "Biker":            "Spr FRLG Biker.png",
+    "Cooltrainer♂":     "Spr FRLG Cooltrainer M.png",
+    "Cooltrainer♀":     "Spr FRLG Cooltrainer F.png",
+    "Swimmer♂":         "Spr FRLG Swimmer M.png",
+    "Swimmer♀":         "Spr FRLG Swimmer F.png",
+    "Team Rocket Grunt":"Spr FRLG Rocket Grunt M.png",
+
+    # Blue / Rival fallbacks (special logic already picks the exact ones by meeting)
+    "Rival":            "Spr FRLG Blue 1.png",
+    "Champion":         "Spr FRLG Blue 3.png",
+
+    # Gym Leaders & E4 – basic mapping
+    "Gym Leader Brock":     "Spr FRLG Brock.png",
+    "Gym Leader Misty":     "Spr FRLG Misty.png",
+    "Gym Leader Lt. Surge": "Spr FRLG Lt Surge.png",
+    "Gym Leader Erika":     "Spr FRLG Erika.png",
+    "Gym Leader Koga":      "Spr FRLG Koga.png",
+    "Gym Leader Sabrina":   "Spr FRLG Sabrina.png",
+    "Gym Leader Blaine":    "Spr FRLG Blaine.png",
+    "Gym Leader Giovanni":  "Spr FRLG Giovanni.png",
+    "Elite Four Lorelei":   "Spr FRLG Lorelei.png",
+    "Elite Four Bruno":     "Spr FRLG Bruno.png",
+    "Elite Four Agatha":    "Spr FRLG Agatha.png",
+    "Elite Four Lance":     "Spr FRLG Lance.png",
 }
 
 # Exact filenames for Blue's FRLG trainer sprites
@@ -2654,6 +2694,23 @@ def render_battle():
     if not STATE["opponents"]["encounters"]:
         st.error("Could not load opponents automatically.")
         return
+        # Allow clicking cards via URL query (?enc=..&mon=..)
+    try:
+        q = st.experimental_get_query_params()
+        enc_q = q.get("enc", [None])[0]
+        mon_q = q.get("mon", [None])[0]
+        if enc_q is not None and mon_q is not None:
+            ei = int(enc_q)
+            mi = int(mon_q)
+            if 0 <= ei < len(STATE["opponents"]["encounters"]):
+                mons_ei = STATE["opponents"]["encounters"][ei].get("mons", [])
+                if 0 <= mi < len(mons_ei):
+                    STATE["last_battle_pick"] = [ei, mi]
+                    save_state(STATE)
+            # Clear query params so they don't stick forever
+            st.experimental_set_query_params()
+    except Exception:
+        pass
 
     # Pick trainer + mon (instant updates; no form, no button)
     enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
@@ -2682,6 +2739,12 @@ def render_battle():
             0,
             min(STATE.get("last_battle_pick", [0, 0])[1], mon_count - 1),
         )
+        
+        # Trainer sprite above their team
+    trainer_label = enc.get("label", "?")
+    trainer_html = trainer_sprite_img_html(trainer_label, size=TRAINER_SPRITE_SIZE)
+    if trainer_html:
+        st.markdown(trainer_html, unsafe_allow_html=True)
 
     st.markdown("**Their Pokémon**")
     if not mons:
@@ -2738,7 +2801,7 @@ def render_battle():
                 moves = mon.get("moves") or []
                 moves_txt = ", ".join([f"{mv} ({tp})" for mv, tp in moves]) if moves else "—"
 
-                sprite_html = sprite_img_html(species, size=112)
+                sprite_html = sprite_img_html(species, size=128)
 
                 # Use two-type aware gradients: primary from T1, secondary from T2 if available
                 primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
@@ -2774,11 +2837,14 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
-                    if st.button("", key=f"opp_card_{selected_enc_idx}_{idx}"):
-                        STATE["last_battle_pick"] = [selected_enc_idx, idx]
-                        save_state(STATE)
-                        do_rerun()
-                    st.markdown(card_html, unsafe_allow_html=True)
+                    # Make the whole card a clickable link that updates ?enc=..&mon=..
+                    href = f"?enc={selected_enc_idx}&mon={idx}"
+                    clickable_html = (
+                        f'<a href="{href}" style="text-decoration:none;color:inherit;">'
+                        f'{card_html}'
+                        f'</a>'
+                    )
+                    st.markdown(clickable_html, unsafe_allow_html=True)
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
@@ -2804,12 +2870,7 @@ def render_battle():
     opp_total = int(opmon.get("total", 0))
     moves_str = ", ".join([f"{n}({t})" for n, t in opp_pairs]) if opp_pairs else "—"
     # No separate text header here; trainer + sprite + actions are below.
-
-    # Trainer sprite header
-    trainer_label = enc.get("label", "?")
-    trainer_html = trainer_sprite_img_html(trainer_label, size=TRAINER_SPRITE_SIZE)
-    if trainer_html:
-        st.markdown(trainer_html, unsafe_allow_html=True)
+    current_opp_name = opmon.get("species", "?")
 
     b1, b2 = st.columns(2)
     if b1.button("✅ Beat Pokémon (remove just this one)"):
@@ -3038,9 +3099,9 @@ def render_battle():
         ),
         reverse=True,
     )
-
+    
     st.markdown("---")
-    st.subheader("Your team vs this Pokémon")
+    st.subheader(f"Your team vs {current_opp_name}")
 
     for r in results:
         mon = r["mon"]
