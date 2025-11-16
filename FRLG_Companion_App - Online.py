@@ -1132,8 +1132,8 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             starting_skipped = True
             continue
 
-        # skip EXP header rows (e.g. "EXP", "Extra EXP", "Experience", with or without punctuation)
-        if re.match(r"^\s*(?:extra\s+)?exp(?:erience)?\b", norm_tr):
+        # skip EXP header rows (e.g. "EXP", "Extra EXP", "Experience") **only** if there is no Pokémon on the row
+        if re.match(r"^\s*(?:extra\s+)?exp(?:erience)?\b", norm_tr) and not poke:
             # ensure nothing attaches to an EXP section header
             current_enc = None
             continue
@@ -2591,36 +2591,37 @@ def render_battle():
     if not STATE["opponents"]["encounters"]:
         st.error("Could not load opponents automatically.")
         return
-        # Handle card-click query params (?enc=X&mon=Y) to update selection
-        try:
-            qp = getattr(st, "query_params", None)
-            if qp is None:
-                qp = st.experimental_get_query_params()
-            enc_q = qp.get("enc")
-            mon_q = qp.get("mon")
-            if enc_q is not None or mon_q is not None:
-                enc_idx_raw = enc_q[0] if isinstance(enc_q, list) else enc_q
-                mon_idx_raw = mon_q[0] if isinstance(mon_q, list) else mon_q
-                enc_idx = int(enc_idx_raw or 0)
-                mon_idx = int(mon_idx_raw or 0)
 
-                enc_idx = max(0, min(enc_idx, len(STATE["opponents"]["encounters"]) - 1))
-                mon_list = STATE["opponents"]["encounters"][enc_idx].get("mons", []) or []
-                mon_idx = max(0, min(mon_idx, len(mon_list) - 1))
+    # Handle card-click query params (?enc=X&mon=Y) to update selection
+    try:
+        qp = getattr(st, "query_params", None)
+        if qp is None:
+            qp = st.experimental_get_query_params()
+        enc_q = qp.get("enc")
+        mon_q = qp.get("mon")
+        if enc_q is not None or mon_q is not None:
+            enc_idx_raw = enc_q[0] if isinstance(enc_q, list) else enc_q
+            mon_idx_raw = mon_q[0] if isinstance(mon_q, list) else mon_q
+            enc_idx = int(enc_idx_raw or 0)
+            mon_idx = int(mon_idx_raw or 0)
 
-                STATE["last_battle_pick"] = [enc_idx, mon_idx]
-                save_state(STATE)
+            enc_idx = max(0, min(enc_idx, len(STATE["opponents"]["encounters"]) - 1))
+            mon_list = STATE["opponents"]["encounters"][enc_idx].get("mons", []) or []
+            mon_idx = max(0, min(mon_idx, len(mon_list) - 1))
 
-                # Clear the params again to keep the URL clean
-                try:
-                    if hasattr(st, "query_params"):
-                        st.query_params.clear()
-                    else:
-                        st.experimental_set_query_params()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+            STATE["last_battle_pick"] = [enc_idx, mon_idx]
+            save_state(STATE)
+
+            # Clear the params again to keep the URL clean
+            try:
+                if hasattr(st, "query_params"):
+                    st.query_params.clear()
+                else:
+                    st.experimental_set_query_params()
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     # Pick trainer + mon (instant updates; no form, no button)
     enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
@@ -2654,19 +2655,23 @@ def render_battle():
     if not mons:
         st.caption("Trainer has no Pokémon.")
     else:
-        # Layout: up to 6 cards total, 3 per row (top row first)
         mon_count = len(mons)
         card_idx = 0
 
-        # For 1–3: single row. For 4–6: 3 on top, rest on bottom.
+        # Row layout rules:
+        # 1–3: 1 row
+        # 4:   2 top, 2 bottom
+        # 5:   2 top, 3 bottom
+        # 6:   3 top, 3 bottom
         if mon_count <= 3:
             row_layout = [mon_count]
-        else:
-            top = min(3, mon_count)
-            bottom = mon_count - top
-            row_layout = [top]
-            if bottom > 0:
-                row_layout.append(min(3, bottom))
+        elif mon_count == 4:
+            row_layout = [2, 2]
+        elif mon_count == 5:
+            row_layout = [2, 3]
+        else:  # 6 or more, clamp at 6 anyway
+            row_layout = [3, 3]
+            mon_count = min(mon_count, 6)
 
         for row_cols in row_layout:
             if card_idx >= mon_count:
@@ -2719,7 +2724,7 @@ def render_battle():
                 # Build HTML card as a link that updates ?enc=...&mon=...
                 href = f"?enc={selected_enc_idx}&mon={idx}"
                 card_html = f"""
-                  <a href="{href}" style="text-decoration:none;">
+                  <a href="{href}" target="_self" style="text-decoration:none;color:inherit;">
                     <div class="{card_classes}" style="{style}">
                       <div class="opp-card-sprite">{sprite_html}</div>
                       <div class="opp-card-main">
