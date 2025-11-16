@@ -1025,12 +1025,24 @@ def build_state_from_web_cached(maxdex: int) -> Dict:
         "last_battle_pick": STATE.get("last_battle_pick", [0,0]),
     }
 
-def ensure_species_in_db(name: str) -> bool:
+def ensure_species_in_db(name: str, scope_maxdex: Optional[int] = None) -> bool:
+    """
+    Ensure a species exists in STATE['species_db'].
+
+    scope_maxdex:
+      - None  → use dex_max() (respects Pokédex scope, 151/386)
+      - 386   → use full Gen 3, regardless of current scope (used for opponents)
+    """
+    if scope_maxdex is None:
+        scope_maxdex = dex_max()
+
     sk = species_key(name)
     if sk in STATE["species_db"]:
         return True
+
     dex = get_pokedex_cached()
-    maxdex = dex_max()
+    maxdex = int(scope_maxdex)
+
     def _find_record(target_name: str):
         rec = dex.get(ps_id(target_name))
         if rec and rec.get("forme"):
@@ -1039,21 +1051,36 @@ def ensure_species_in_db(name: str) -> bool:
             rec = None
         if rec:
             return rec
+
+        # fallback: scan by normalized name
         for _, r in dex.items():
-            if ps_id(r.get("name","")) == ps_id(target_name):
-                if r.get("forme"): continue
-                if isinstance(r.get("num"), int) and 1 <= r.get("num") <= maxdex:
-                    return r
+            if not r:
+                continue
+            if ps_id(r.get("name", "")) != ps_id(target_name):
+                continue
+            if r.get("forme"):
+                continue
+            num = r.get("num")
+            if isinstance(num, int) and 1 <= num <= maxdex:
+                return r
         return None
+
     sd = _find_record(name)
     if not sd:
         return False
+
     nm = sd.get("name", name)
     t1, t2 = purge_fairy_types_pair(sd.get("types", []))
     base = sd.get("baseStats", {})
     total = int(sum(base.values())) if base else 0
     learnset = rebuild_learnset_for(nm) or {}
-    STATE["species_db"][species_key(nm)] = {"name": nm, "types": [t1, t2], "total": total, "learnset": learnset}
+
+    STATE["species_db"][species_key(nm)] = {
+        "name": nm,
+        "types": [t1, t2],
+        "total": total,
+        "learnset": learnset,
+    }
     save_state(STATE)
     return True
 
@@ -1114,7 +1141,7 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
         dex = get_pokedex_cached() or {}
     except Exception:
         dex = {}
-    maxdex = dex_max()
+    maxdex = 386
 
     def _looks_like_species(cell: str) -> bool:
         val = clean_invisibles(cell).strip()
@@ -1201,7 +1228,7 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
         sk = species_key(poke)
         sp = STATE["species_db"].get(sk)
         if not sp:
-            if ensure_species_in_db(poke):
+            if ensure_species_in_db(poke, scope_maxdex=386):
                 sp = STATE["species_db"].get(sk)
             if not sp:
                 # unknown species? skip this row
@@ -1239,6 +1266,17 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
                 if mtype:
                     ensure_move_in_db(mv, default_type=mtype)
                     typed_moves.append((mv, mtype))
+
+        # If row had no usable moves, fall back to FRLG-legal auto moves for that species
+        if not typed_moves:
+            auto_moves = legal_moves_for_species_chain(sp["name"]) or []
+            auto_moves = auto_moves[-4:]  # keep at most 4
+            for mv in auto_moves:
+                ct = canonical_typed(mv)
+                if not ct:
+                    continue
+                ensure_move_in_db(ct[0], default_type=ct[1])
+                typed_moves.append(ct)
 
         mon = {
             "species": sp["name"],
@@ -1490,7 +1528,7 @@ def _dex_num_for_name_cached(name: str) -> Optional[int]:
         return None
 
     sid = ps_id(name)
-    maxdex = dex_max()
+    maxdex = 386
 
     rec = dex.get(sid)
     if rec and isinstance(rec.get("num"), int) and 1 <= rec["num"] <= maxdex and not rec.get("forme"):
@@ -1537,10 +1575,6 @@ def sprite_img_html(name: str, size: int = None) -> str:
         f'width="{s}" height="{s}" alt="{safe_name} sprite"/>'
     )
 
-# === Trainer sprites (opponent, FRLG style) ===
-
-TRAINER_SPRITE_SIZE = SPRITE_SIZE  # keep same base size
-
 # Canonical FRLG trainer classes and how to detect them from a sheet label
 FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Rival", ["rival", "blue", "gary"]),
@@ -1554,6 +1588,7 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
 
     # Gendered classes (we refine later)
     ("Cooltrainer", ["cooltrainer"]),
+    ("Cooltrainer", ["cool couple", "coolcouple", "cool_couple"]),
     ("Swimmer", ["swimmer"]),
 
     # Common basic overworld classes
@@ -2836,20 +2871,24 @@ def render_battle():
         mon_count = len(mons)
         card_idx = 0
 
-        # Row layout rules:
+        # Simple responsive layout:
         # 1–3: 1 row
-        # 4:   2 top, 2 bottom
-        # 5:   2 top, 3 bottom
-        # 6:   3 top, 3 bottom
+        # 4–6: 2 rows
+        # 7+: 3 rows, distributed as evenly as possible
         if mon_count <= 3:
             row_layout = [mon_count]
-        elif mon_count == 4:
-            row_layout = [2, 2]
-        elif mon_count == 5:
-            row_layout = [2, 3]
-        else:  # 6 or more, clamp at 6 anyway
-            row_layout = [3, 3]
-            mon_count = min(mon_count, 6)
+        elif mon_count <= 6:
+            top = mon_count // 2
+            bottom = mon_count - top
+            row_layout = [top, bottom]
+        else:
+            per = mon_count // 3
+            rem = mon_count % 3
+            row_layout = [
+                per + (1 if rem > 0 else 0),
+                per + (1 if rem > 1 else 0),
+                per,
+            ]
 
         for row_cols in row_layout:
             if card_idx >= mon_count:
@@ -2873,7 +2912,6 @@ def render_battle():
                 types_pair = purge_fairy_types_pair(mon.get("types") or [])
                 t1, t2 = types_pair[0], types_pair[1]
 
-                # Type display string
                 if t1:
                     type_text = f"{type_emoji(t1)} {t1}"
                 else:
@@ -2886,25 +2924,24 @@ def render_battle():
 
                 sprite_html = sprite_img_html(species, size=128)
 
-                # Use two-type aware gradients: primary from T1, secondary from T2 if available
                 primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
                 secondary_type = normalize_type(t2)
 
                 if secondary_type and secondary_type != primary_type:
-                    # Dual type: blend primary & secondary colors
                     g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
-                    _, g2b = TYPE_GRADIENT.get(secondary_type, TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT))
+                    _, g2b = TYPE_GRADIENT.get(
+                        secondary_type,
+                        TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT),
+                    )
                     g1 = g1a
                     g2 = g2b
                 else:
-                    # Single type: color -> transparent
                     g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
                     g1 = g1a
                     g2 = "rgba(0,0,0,0)"
 
                 style = f"--opp-bg1:{g1};--opp-bg2:{g2};"
 
-                # Build HTML card as a link that updates ?enc=...&mon=...
                 card_html = f"""
                   <div class="{card_classes}" style="{style}">
                     <div class="opp-card-sprite">{sprite_html}</div>
@@ -2920,7 +2957,6 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
-                    # Render the card and use a button to update the selected mon
                     st.markdown(card_html, unsafe_allow_html=True)
                     if st.button(
                         "Select",
