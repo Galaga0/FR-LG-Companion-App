@@ -1120,27 +1120,19 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             continue
 
         # faste felter
-        trainer_cell = clean_invisibles((r[0] or "").strip())
-        poke        = clean_invisibles((r[4] or "").strip())
-        lvl_str     = clean_invisibles((r[5] or "").strip())
-        mv_cols     = [clean_move_token(c) for c in r[6:10]]
+        raw_trainer = (r[0] or "")
+        trainer_cell = clean_invisibles(raw_trainer).strip()
 
-        norm_tr = trainer_cell.lower()
+        # Normalize to collapse small differences into the same base label
+        norm_base = re.sub(r"\s+", " ", trainer_cell).strip()
 
-        # skip arkets “Starting …” headerblok (kun første gang vi møder den)
-        if not starting_skipped and norm_tr.startswith("starting"):
-            starting_skipped = True
-            continue
-
-        # skip EXP header rows (e.g. "EXP", "Extra EXP", "Experience") **only** if there is no Pokémon on the row
-        if re.match(r"^\s*(?:extra\s+)?exp(?:erience)?\b", norm_tr) and not poke:
-            # ensure nothing attaches to an EXP section header
-            current_enc = None
-            continue
-
-        # ny encounter når der står et trænernavn i kolonne 0
-        if trainer_cell:
-            base_name = trainer_cell
+        if norm_base:
+            base_name = norm_base
+            name_counts[base_name] = name_counts.get(base_name, 0) + 1
+            suffix = f" #{name_counts[base_name]}" if name_counts[base_name] > 1 else ""
+            label_unique = f"{base_name}{suffix}"
+            current_enc = {"label": label_unique, "base_label": base_name, "mons": []}
+            encounters_list.append(current_enc)
             name_counts[base_name] = name_counts.get(base_name, 0) + 1
             suffix = f" #{name_counts[base_name]}" if name_counts[base_name] > 1 else ""
             label_unique = f"{base_name}{suffix}"
@@ -2592,37 +2584,6 @@ def render_battle():
         st.error("Could not load opponents automatically.")
         return
 
-    # Handle card-click query params (?enc=X&mon=Y) to update selection
-    try:
-        qp = getattr(st, "query_params", None)
-        if qp is None:
-            qp = st.experimental_get_query_params()
-        enc_q = qp.get("enc")
-        mon_q = qp.get("mon")
-        if enc_q is not None or mon_q is not None:
-            enc_idx_raw = enc_q[0] if isinstance(enc_q, list) else enc_q
-            mon_idx_raw = mon_q[0] if isinstance(mon_q, list) else mon_q
-            enc_idx = int(enc_idx_raw or 0)
-            mon_idx = int(mon_idx_raw or 0)
-
-            enc_idx = max(0, min(enc_idx, len(STATE["opponents"]["encounters"]) - 1))
-            mon_list = STATE["opponents"]["encounters"][enc_idx].get("mons", []) or []
-            mon_idx = max(0, min(mon_idx, len(mon_list) - 1))
-
-            STATE["last_battle_pick"] = [enc_idx, mon_idx]
-            save_state(STATE)
-
-            # Clear the params again to keep the URL clean
-            try:
-                if hasattr(st, "query_params"):
-                    st.query_params.clear()
-                else:
-                    st.experimental_set_query_params()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
     # Pick trainer + mon (instant updates; no form, no button)
     enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
     cur_enc_idx, cur_mon_idx = STATE.get("last_battle_pick", [0, 0])
@@ -2710,36 +2671,42 @@ def render_battle():
 
                 # Use two-type aware gradients: primary from T1, secondary from T2 if available
                 primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
-                secondary_type = normalize_type(t2) or primary_type
+                secondary_type = normalize_type(t2)
 
-                g1a, g1b = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
-                g2a, g2b = TYPE_GRADIENT.get(secondary_type, TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT))
-
-                # Pick first color of primary and second color of secondary to mix
-                g1 = g1a
-                g2 = g2b
+                if secondary_type and secondary_type != primary_type:
+                    # Dual type: blend primary & secondary colors
+                    g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+                    _, g2b = TYPE_GRADIENT.get(secondary_type, TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT))
+                    g1 = g1a
+                    g2 = g2b
+                else:
+                    # Single type: color -> transparent
+                    g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+                    g1 = g1a
+                    g2 = "rgba(0,0,0,0)"
 
                 style = f"--opp-bg1:{g1};--opp-bg2:{g2};"
 
                 # Build HTML card as a link that updates ?enc=...&mon=...
-                href = f"?enc={selected_enc_idx}&mon={idx}"
                 card_html = f"""
-                  <a href="{href}" target="_self" style="text-decoration:none;color:inherit;">
-                    <div class="{card_classes}" style="{style}">
-                      <div class="opp-card-sprite">{sprite_html}</div>
-                      <div class="opp-card-main">
-                        <div class="opp-card-name">{species} • Lv{level}</div>
-                        <div class="opp-card-types">{type_text}</div>
-                        <div class="opp-card-total">Total: {total}</div>
-                        <div class="opp-card-moves">
-                          <span class="opp-card-moves-label">Moves:</span> {moves_txt}
-                        </div>
+                  <div class="{card_classes}" style="{style}">
+                    <div class="opp-card-sprite">{sprite_html}</div>
+                    <div class="opp-card-main">
+                      <div class="opp-card-name">{species} • Lv{level}</div>
+                      <div class="opp-card-types">{type_text}</div>
+                      <div class="opp-card-total">Total: {total}</div>
+                      <div class="opp-card-moves">
+                        <span class="opp-card-moves-label">Moves:</span> {moves_txt}
                       </div>
                     </div>
-                  </a>
+                  </div>
                 """
 
                 with cols[col_pos]:
+                    if st.button("", key=f"opp_card_{selected_enc_idx}_{idx}"):
+                        STATE["last_battle_pick"] = [selected_enc_idx, idx]
+                        save_state(STATE)
+                        do_rerun()
                     st.markdown(card_html, unsafe_allow_html=True)
 
     # === Clamp indices and build opponent header ===
