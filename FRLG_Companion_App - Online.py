@@ -128,7 +128,7 @@ def is_base_name_151(name: str) -> bool:
 import streamlit as st
 from typing import List, Dict, Tuple, Optional
 import json, os, urllib.request, ssl, re, csv, uuid
-from urllib.parse import urlparse, parse_qs, urlencode
+from urllib.parse import urlparse, parse_qs, urlencode, quote
 
 # --- Session persistence mode ---
 # Default: ephemeral (no disk writes, fresh state per browser session)
@@ -329,7 +329,8 @@ st.markdown("""
 
 .opp-card-selected {
   border-color: rgba(56,189,248,1);
-  box-shadow: 0 0 0 1px rgba(56,189,248,0.8);
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(56,189,248,0.9), 0 0 12px rgba(56,189,248,0.6);
 }
 
 .opp-card-sprite img {
@@ -1106,61 +1107,110 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
     current_enc: Optional[Dict] = None
     name_counts: Dict[str, int] = {}
     rownum = 0
-    starting_skipped = False
+
+    # We use the full Pokédex to detect which cell is a valid species name
+    try:
+        dex = get_pokedex_cached() or {}
+    except Exception:
+        dex = {}
+    maxdex = dex_max()
+
+    def _looks_like_species(cell: str) -> bool:
+        val = clean_invisibles(cell).strip()
+        if not val:
+            return False
+        sid = ps_id(val)
+        if not sid:
+            return False
+        sd = dex.get(sid)
+        if not sd:
+            # small fallback: scan by normalized name
+            for rec in dex.values():
+                if not rec:
+                    continue
+                nm = rec.get("name", "")
+                if ps_id(nm) == sid:
+                    sd = rec
+                    break
+        if not sd:
+            return False
+        if sd.get("forme"):
+            return False
+        num = sd.get("num")
+        return isinstance(num, int) and 1 <= num <= maxdex
 
     for r in rows:
         rownum += 1
 
-        # garantér mindst 10 kolonner (trainer, …, 4 moves)
+        # guarantee at least 10 columns (trainer, …, 4 moves)
         if len(r) < 10:
             r = r + [""] * (10 - len(r))
 
-        # tom række? spring over
+        # empty row? skip
         if not any((c or "").strip() for c in r):
             continue
 
-        # faste felter
+        # trainer cell
         raw_trainer = (r[0] or "")
         trainer_cell = clean_invisibles(raw_trainer).strip()
 
         # Normalize to collapse small differences into the same base label
         norm_base = re.sub(r"\s+", " ", trainer_cell).strip()
 
+        # New encounter starts whenever trainer cell is non-empty
         if norm_base:
             base_name = norm_base
-            name_counts[base_name] = name_counts.get(base_name, 0) + 1
-            suffix = f" #{name_counts[base_name]}" if name_counts[base_name] > 1 else ""
-            label_unique = f"{base_name}{suffix}"
-            current_enc = {"label": label_unique, "base_label": base_name, "mons": []}
-            encounters_list.append(current_enc)
-            name_counts[base_name] = name_counts.get(base_name, 0) + 1
-            suffix = f" #{name_counts[base_name]}" if name_counts[base_name] > 1 else ""
+            count = name_counts.get(base_name, 0) + 1
+            name_counts[base_name] = count
+            suffix = f" #{count}" if count > 1 else ""
             label_unique = f"{base_name}{suffix}"
             current_enc = {"label": label_unique, "base_label": base_name, "mons": []}
             encounters_list.append(current_enc)
 
-        # hvis vi endnu ikke har en aktiv encounter, eller ingen Pokémon i rækken, så videre
+        # Find Pokémon species and (nearby) level in this row
+        poke = ""
+        lvl_str = ""
+
+        # All but last 4 columns are metadata (location, notes, level, species, etc.)
+        upper_bound = max(1, len(r) - 4)
+        for idx in range(1, upper_bound):
+            cell = r[idx]
+            if _looks_like_species(cell):
+                poke = clean_invisibles(cell).strip()
+                # try next few columns for a level (digits)
+                for j in range(idx + 1, min(idx + 4, upper_bound)):
+                    lv_cand = clean_invisibles(r[j]).strip()
+                    if re.search(r"\d+", lv_cand or ""):
+                        lvl_str = lv_cand
+                        break
+                break
+
+        # if we still have no trainer context or no Pokémon, skip the row
         if not current_enc or not poke:
             continue
 
-        # level-parsing
+        # level parsing
         try:
-            m = re.findall(r"\d+", lvl_str)
+            m = re.findall(r"\d+", lvl_str or "")
             level = int(m[0]) if m else 1
         except Exception:
             level = 1
 
-        # species record, hent den hvis mangler
+        # species record, fetch if needed
         sk = species_key(poke)
         sp = STATE["species_db"].get(sk)
         if not sp:
             if ensure_species_in_db(poke):
                 sp = STATE["species_db"].get(sk)
             if not sp:
-                # ukendt art? spring denne række
+                # unknown species? skip this row
                 continue
 
-        # moves: kun skadevoldende, respektér FRLG_EXCLUDE_MOVES
+        # last 4 columns: moves
+        mv_raw = r[-4:]
+        mv_cols = [clean_invisibles(c).strip() for c in mv_raw]
+
+        # moves: only damaging, respect FRLG_EXCLUDE_MOVES
         typed_moves: List[Tuple[str, str]] = []
         for mv in mv_cols:
             if not mv:
@@ -1169,7 +1219,7 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             if info and not info.get("is_damaging", True):
                 continue
 
-            # filtrer globale FRLG-excludes
+            # filter global FRLG excludes
             mv_name_lc = (info.get("name", mv) if info else mv).lower()
             if mv_name_lc in FRLG_EXCLUDE_MOVES:
                 continue
@@ -1177,11 +1227,14 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             if info:
                 mtype = normalize_type(info.get("type", ""))
                 if mtype:
-                    ensure_move_in_db(info["name"], default_type=mtype)
-                    typed_moves.append((info["name"], mtype))
+                    canonical = info.get("name", mv)
+                    ensure_move_in_db(canonical, default_type=mtype)
+                    typed_moves.append((canonical, mtype))
             else:
-                # fallback til lokal moves_db-type hvis vi har den
-                mtype = normalize_type(STATE["moves_db"].get(norm_key(mv), {}).get("type", ""))
+                # fallback to local moves_db type if we have it
+                mtype = normalize_type(
+                    STATE["moves_db"].get(norm_key(mv), {}).get("type", "")
+                )
                 if mtype:
                     ensure_move_in_db(mv, default_type=mtype)
                     typed_moves.append((mv, mtype))
@@ -1192,17 +1245,18 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
             "types": purge_fairy_types_pair(sp["types"]),
             "moves": typed_moves,
             "source_row": rownum,
-            "total": sp["total"]
+            "total": sp["total"],
         }
         current_enc["mons"].append(mon)
 
-    # filtrér tomme encounters fra (og evt. dem der utilsigtet hed “exp” som base label)
+    # filter empty encounters (and accidental “exp” / “extra exp” labels)
     return [
-        enc for enc in encounters_list
+        enc
+        for enc in encounters_list
         if enc.get("mons")
         and not re.match(
             r"^\s*(?:extra\s+)?exp(?:erience)?\b",
-            (enc.get("base_label","") or "").lower()
+            (enc.get("base_label", "") or "").lower(),
         )
     ]
 
@@ -1547,81 +1601,98 @@ def trainer_class_from_label(label: str) -> str:
         return "Trainer"
     return tokens[0].capitalize()
 
-# You MUST point this to where your FRLG trainer PNGs live.
-# Example: static hosting with files named exactly like the values below.
-FRLG_TRAINER_SPRITE_BASE = (
-    "https://raw.githubusercontent.com/PokeAPI/sprites/master/"
-    "sprites/trainers"
-)
+# Use Bulbagarden Archives FRLG trainer sprites.
+# We go through Special:FilePath so we don't need the hashed upload path.
+FRLG_TRAINER_SPRITE_BASE = "https://archives.bulbagarden.net/wiki/Special:FilePath"
 
-# Use Pokémon Showdown trainer sprites (public, stable sprite repo).
-# They live at: https://play.pokemonshowdown.com/sprites/trainers
-# Filenames are simple "<number>.png" where the number is an avatar ID.
-FRLG_TRAINER_SPRITE_BASE = "https://play.pokemonshowdown.com/sprites/trainers"
+# IMPORTANT:
+# I’m not going to invent filenames I can’t guarantee.
+# We *know* "Spr FRLG Picnicker.png" exists from your example, so we use it
+# as a safe generic fallback. If you want per-class sprites, add more entries
+# here with the exact Bulbagarden filenames.
+FRLG_TRAINER_SPRITES: Dict[str, str] = {
+    # Generic fallback if we can't figure anything out
+    "Trainer":  "Spr FRLG Picnicker.png",
 
-# Map your trainer “classes” to some avatar IDs.
-# These IDs are just chosen examples that will resolve to *a* sprite;
-# if you care which avatar is which, open the URL in a browser and adjust.
-FRLG_TRAINER_SPRITES = {
-    # Generic fallback
-    "Trainer": "1.png",
-
-    # Common generic classes
-    "Rival": "70.png",
-    "Champion": "71.png",
-    "Team Rocket Grunt": "54.png",
-    "Youngster": "1.png",
-    "Bug Catcher": "2.png",
-    "Lass": "3.png",
-    "Camper": "4.png",
-    "Picnicker": "5.png",
-    "Fisherman": "6.png",
-    "Hiker": "7.png",
-    "Sailor": "8.png",
-    "Bird Keeper": "9.png",
-    "Blackbelt": "10.png",
-    "Beauty": "11.png",
-    "Psychic": "12.png",
-    "Scientist": "13.png",
-    "Pokémaniac": "14.png",
-    "Super Nerd": "15.png",
-    "Juggler": "16.png",
-    "Tamer": "17.png",
-    "Gambler": "18.png",
-    "Cue Ball": "19.png",
-    "Rocker": "20.png",
-    "Biker": "21.png",
-    "Cooltrainer♂": "22.png",
-    "Cooltrainer♀": "23.png",
-    "Swimmer♂": "24.png",
-    "Swimmer♀": "25.png",
-
-    # Gym Leaders / E4 – pick any avatars you like here
-    "Gym Leader Brock": "26.png",
-    "Gym Leader Misty": "27.png",
-    "Gym Leader Lt. Surge": "28.png",
-    "Gym Leader Erika": "29.png",
-    "Gym Leader Koga": "30.png",
-    "Gym Leader Sabrina": "31.png",
-    "Gym Leader Blaine": "32.png",
-    "Gym Leader Giovanni": "33.png",
-    "Elite Four Lorelei": "34.png",
-    "Elite Four Bruno": "35.png",
-    "Elite Four Agatha": "36.png",
-    "Elite Four Lance": "37.png",
+    # Fallbacks for Blue if, for some reason, the special logic below can't
+    # find his meeting index. In normal use, the special logic will be used.
+    "Rival":    "Spr FRLG Blue 1.png",
+    "Champion": "Spr FRLG Blue 3.png",
+    # Add more specific classes here later if you want (Youngster, Bug Catcher, etc.)
 }
+
+# Exact filenames for Blue's FRLG trainer sprites
+BLUE_SPRITE_VARIANTS: Dict[str, str] = {
+    "blue1": "Spr FRLG Blue 1.png",
+    "blue2": "Spr FRLG Blue 2.png",
+    "blue3": "Spr FRLG Blue 3.png",
+}
+
+
+def _blue_sprite_filename_for_meeting(label: str) -> Optional[str]:
+    """
+    Return the correct 'Spr FRLG Blue X.png' for this encounter label.
+
+    Meeting index counts *all* encounters in STATE['opponents']['encounters']
+    whose label/base_label contains 'rival', 'blue' or 'gary', in list order:
+
+      1–3  → Blue 1
+      4–7  → Blue 2
+      8–9+ → Blue 3  (Champion + stronger rematch, if present)
+
+    If the label isn't found or STATE['opponents'] is missing, returns None.
+    """
+    try:
+        encs = (STATE.get("opponents", {}) or {}).get("encounters", []) or []
+    except Exception:
+        encs = []
+
+    meeting = 0
+    for enc in encs:
+        base = f"{enc.get('label','')} {enc.get('base_label','')}".lower()
+        # Same keyword logic you already use for is_rival_encounter
+        if any(k in base for k in ("rival", "blue", "gary")):
+            meeting += 1
+            if enc.get("label") == label:
+                if meeting <= 3:
+                    return BLUE_SPRITE_VARIANTS["blue1"]
+                elif meeting <= 7:
+                    return BLUE_SPRITE_VARIANTS["blue2"]
+                else:
+                    # Champion + post-game champion rematch (and anything beyond)
+                    return BLUE_SPRITE_VARIANTS["blue3"]
+
+    return None
 
 def trainer_sprite_url(label: str) -> Optional[str]:
     """
-    Return a FRLG-style trainer sprite URL based on their label/class.
-    This assumes you have Gen 3 FRLG trainer PNGs hosted under
-    FRLG_TRAINER_SPRITE_BASE using the filenames in FRLG_TRAINER_SPRITES.
+    Return a Bulbagarden FRLG trainer sprite URL based on the encounter label.
+
+    Special case: Blue (Rival/Champion) uses his 'Blue 1/2/3' sprites chosen
+    by how many times you've met him in the current opponents list.
     """
-    cls = trainer_class_from_label(label)
+    if not label:
+        return None
+
+    label_str = str(label)
+    s = label_str.lower()
+
+    # ---- Special handling: Blue / Rival ----
+    # Match the same keywords as is_rival_encounter: 'rival', 'blue', 'gary'.
+    if any(k in s for k in ("rival", "blue", "gary")):
+        fname = _blue_sprite_filename_for_meeting(label_str)
+        if fname:
+            title = fname.replace(" ", "_")
+            return f"{FRLG_TRAINER_SPRITE_BASE}/{quote(title)}"
+
+    # ---- Normal class-based mapping ----
+    cls = trainer_class_from_label(label_str)
     filename = FRLG_TRAINER_SPRITES.get(cls) or FRLG_TRAINER_SPRITES.get("Trainer")
     if not filename or not FRLG_TRAINER_SPRITE_BASE:
         return None
-    return f"{FRLG_TRAINER_SPRITE_BASE}/{filename}"
+
+    title = filename.replace(" ", "_")
+    return f"{FRLG_TRAINER_SPRITE_BASE}/{quote(title)}"
 
 def trainer_sprite_img_html(label: str, size: int = None) -> str:
     url = trainer_sprite_url(label)
