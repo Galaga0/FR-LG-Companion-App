@@ -331,16 +331,30 @@ st.markdown("""
   position: relative;
 }
 
-/* The Streamlit button inside this wrapper becomes a full-card invisible click target */
-.opp-card-wrapper button {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background: transparent;
-  border: none;
-  padding: 0;
+/* Streamlit renders the button *after* the card in its own container.
+   We grab that sibling and turn its button into a full-card invisible click target. */
+.opp-card-wrapper + div[data-testid="stButton"] {
+  /* Pull the button container up so it overlaps the card */
+  margin-top: -110px;   /* approximate card height; tweak if needed */
+}
+
+/* Make that button cover the card and be invisible */
+.opp-card-wrapper + div[data-testid="stButton"] > button {
+  width: 100%;
+  height: 110px;        /* match the negative margin above */
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
   cursor: pointer;
-  color: transparent;
+  color: transparent !important;
+}
+
+/* No hover highlight, no focus ring box-shadow around the card */
+.opp-card-wrapper + div[data-testid="stButton"] > button:hover,
+.opp-card-wrapper + div[data-testid="stButton"] > button:focus {
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .opp-card-selected {
@@ -1250,30 +1264,28 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
                 # unknown species? skip this row
                 continue
 
-        # last 4 columns: moves
-        mv_raw = r[-4:]
-        mv_cols = [clean_invisibles(c).strip() for c in mv_raw]
-
-        # moves: only damaging, respect FRLG_EXCLUDE_MOVES
+        # Column G (index 6) holds the *exact* move this Pokémon uses in the sheet.
+        # We take only that cell, keep it if it is a damaging move, and type it.
         typed_moves: List[Tuple[str, str]] = []
-        for mv in mv_cols:
-            if not mv:
-                continue
-            info = lookup_move(mv)
-            if info and not info.get("is_damaging", True):
-                continue
 
-            # filter global FRLG excludes
-            mv_name_lc = (info.get("name", mv) if info else mv).lower()
-            if mv_name_lc in FRLG_EXCLUDE_MOVES:
-                continue
+        move_cell = ""
+        if len(r) > 6:
+            move_cell = clean_invisibles(r[6]).strip()
 
-            if info:
-                mtype = normalize_type(info.get("type", ""))
+        if move_cell:
+            info = lookup_move(move_cell)
+            # Canonical name if we know it, otherwise raw text
+            move_name = (info.get("name", move_cell) if info else move_cell)
+
+            # Throw away non-damaging and globally excluded moves
+            if move_is_damaging(move_name) and move_name.lower() not in FRLG_EXCLUDE_MOVES:
+                mtype = normalize_type(
+                    (info.get("type") if info else None)
+                    or STATE["moves_db"].get(norm_key(move_name), {}).get("type", "")
+                )
                 if mtype:
-                    canonical = info.get("name", mv)
-                    ensure_move_in_db(canonical, default_type=mtype)
-                    typed_moves.append((canonical, mtype))
+                    ensure_move_in_db(move_name, default_type=mtype)
+                    typed_moves.append((move_name, mtype))
             else:
                 # fallback to local moves_db type if we have it
                 mtype = normalize_type(
@@ -1552,22 +1564,27 @@ def _dex_num_for_name_cached(name: str) -> Optional[int]:
 
 def _bulba_frlg_sprite_url(num: int) -> Optional[str]:
     """
-    Build a stable Bulbagarden Archives URL for the FRLG-style sprite
-    'Spr_3r_XXX.png' using the standard MediaWiki MD5 path layout.
+    Build a stable Bulbagarden Archives URL for the FRLG-style sprite.
 
-    Works for all 386 Gen 3 species present in the FRLG sprite set.
+    1–151  → Spr_3f_XXX.png  (FRLG Kanto set)
+    152–386 → Spr_3r_XXX.png (rest of the Gen 3 FRLG set)
+
+    Uses the standard MediaWiki MD5 path layout.
     """
     try:
         if not isinstance(num, int) or num < 1 or num > 386:
             return None
-        fname = f"Spr_3r_{num:03d}.png"
+
+        # Kanto uses the '3f' set, 152+ use the '3r' set.
+        prefix = "3f" if num <= 151 else "3r"
+        fname = f"Spr_{prefix}_{num:03d}.png"
+
         h = hashlib.md5(fname.encode("utf-8")).hexdigest()
         d1 = h[0]
         d2 = h[:2]
         return f"https://archives.bulbagarden.net/media/upload/{d1}/{d2}/{fname}"
     except Exception:
         return None
-
 
 def sprite_url_for_species(name: str) -> Optional[str]:
     """
