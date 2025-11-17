@@ -127,7 +127,7 @@ def is_base_name_151(name: str) -> bool:
 
 import streamlit as st
 from typing import List, Dict, Tuple, Optional
-import json, os, urllib.request, ssl, re, csv, uuid
+import json, os, urllib.request, ssl, re, csv, uuid, hashlib
 from urllib.parse import urlparse, parse_qs, urlencode, quote
 
 # --- Session persistence mode ---
@@ -325,6 +325,22 @@ st.markdown("""
   align-items: center;
   background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2));
   cursor: pointer;
+}
+
+.opp-card-wrapper {
+  position: relative;
+}
+
+/* The Streamlit button inside this wrapper becomes a full-card invisible click target */
+.opp-card-wrapper button {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: transparent;
 }
 
 .opp-card-selected {
@@ -1266,18 +1282,6 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
                 if mtype:
                     ensure_move_in_db(mv, default_type=mtype)
                     typed_moves.append((mv, mtype))
-
-        # If row had no usable moves, fall back to FRLG-legal auto moves for that species
-        if not typed_moves:
-            auto_moves = legal_moves_for_species_chain(sp["name"]) or []
-            auto_moves = auto_moves[-4:]  # keep at most 4
-            for mv in auto_moves:
-                ct = canonical_typed(mv)
-                if not ct:
-                    continue
-                ensure_move_in_db(ct[0], default_type=ct[1])
-                typed_moves.append(ct)
-
         mon = {
             "species": sp["name"],
             "level": int(level),
@@ -1546,19 +1550,34 @@ def _dex_num_for_name_cached(name: str) -> Optional[int]:
     return None
 
 
+def _bulba_frlg_sprite_url(num: int) -> Optional[str]:
+    """
+    Build a stable Bulbagarden Archives URL for the FRLG-style sprite
+    'Spr_3r_XXX.png' using the standard MediaWiki MD5 path layout.
+
+    Works for all 386 Gen 3 species present in the FRLG sprite set.
+    """
+    try:
+        if not isinstance(num, int) or num < 1 or num > 386:
+            return None
+        fname = f"Spr_3r_{num:03d}.png"
+        h = hashlib.md5(fname.encode("utf-8")).hexdigest()
+        d1 = h[0]
+        d2 = h[:2]
+        return f"https://archives.bulbagarden.net/media/upload/{d1}/{d2}/{fname}"
+    except Exception:
+        return None
+
+
 def sprite_url_for_species(name: str) -> Optional[str]:
     """
-    Return a front sprite URL for an in-scope species, or None if unknown.
-    Uses the Gen 3 FireRed/LeafGreen sprites by numeric ID.
+    Return a FRLG-style front sprite URL for any Gen 3 species (1–386).
+    Uses Bulbagarden Archives 'Spr_3r_XXX.png' with computed MD5 path.
     """
     num = _dex_num_for_name_cached(name)
     if not num:
         return None
-    base = (
-        "https://raw.githubusercontent.com/PokeAPI/sprites/master/"
-        "sprites/pokemon/versions/generation-iii/firered-leafgreen"
-    )
-    return f"{base}/{num}.png"
+    return _bulba_frlg_sprite_url(num)
 
 def sprite_img_html(name: str, size: int = None) -> str:
     """
@@ -1587,7 +1606,7 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Scientist", ["scientist", "gideon"]),  # Gideon should be Scientist
 
     # Gendered classes (we refine later)
-    ("Cooltrainer", ["cooltrainer"]),
+    ("Cooltrainer", ["cooltrainer", "cool trainer"]),
     ("Cooltrainer", ["cool couple", "coolcouple", "cool_couple"]),
     ("Swimmer", ["swimmer"]),
 
@@ -1653,20 +1672,18 @@ def trainer_class_from_label(label: str) -> str:
         return tokens[0].capitalize()
 
     # 3) Refine gendered classes based on name
-    if base_cls in ("Cooltrainer", "Swimmer"):
-        # Try to extract the "name" token after the class word
-        # e.g. "Cooltrainer Leroy #2" → "leroy"
+    if base_cls in ("Cooltrainer", "Swimmer", "Team Rocket Grunt"):
+        # Try to extract a name/gender token from the label.
+        # Strategy: last alphabetic token in the label, so this works for:
+        #   "Cool Trainer Leroy #2", "Swimmer Anna", "Team Rocket Grunt F", etc.
         parts = base_label.replace("#", " ").split()
-        try:
-            idx = parts.index(base_cls.lower())
-        except ValueError:
-            idx = None
-
         name_token = None
-        if idx is not None and idx + 1 < len(parts):
-            name_token = parts[idx + 1]
+        for tok in reversed(parts):
+            t = tok.strip(",.")
+            if t.isalpha():
+                name_token = t
+                break
 
-        # crude gender detection by ending; better than nothing and works for Leroy / Michelle
         female_markers = {"michelle", "anna", "jessica", "sarah", "amber", "megan", "linda", "f", "♀"}
         male_markers = {"leroy", "kevin", "mark", "gary", "john", "m", "♂"}
 
@@ -1674,11 +1691,23 @@ def trainer_class_from_label(label: str) -> str:
         cls_f = base_cls + "♀"
 
         if name_token:
-            n = name_token.strip(",.").lower()
+            n = name_token.lower()
             if n in female_markers:
                 return cls_f
             if n in male_markers:
                 return cls_m
+
+        # Fallback based on explicit 'F' or 'M' substrings in the whole label
+        if any(tok in base_label for tok in (" f ", "(f)", "♀")):
+            return cls_f
+        if any(tok in base_label for tok in (" m ", "(m)", "♂")):
+            return cls_m
+
+        # Default to male variant where it exists
+        if base_cls == "Team Rocket Grunt":
+            return cls_m
+        if base_cls in ("Cooltrainer", "Swimmer"):
+            return cls_m
 
         # Fallback based on explicit 'F' or 'M' in the label text
         if any(tok in base_label for tok in (" f ", "(f)", "♀")):
@@ -1726,11 +1755,15 @@ FRLG_TRAINER_SPRITES: Dict[str, str] = {
     "Cue Ball":         "Spr FRLG Cue Ball.png",
     "Rocker":           "Spr FRLG Rocker.png",
     "Biker":            "Spr FRLG Biker.png",
-    "Cooltrainer♂":     "Spr FRLG Cooltrainer M.png",
-    "Cooltrainer♀":     "Spr FRLG Cooltrainer F.png",
-    "Swimmer♂":         "Spr FRLG Swimmer M.png",
-    "Swimmer♀":         "Spr FRLG Swimmer F.png",
-    "Team Rocket Grunt":"Spr FRLG Rocket Grunt M.png",
+    "Cooltrainer♂":         "Spr FRLG Cooltrainer M.png",
+    "Cooltrainer♀":         "Spr FRLG Cooltrainer F.png",
+    "Swimmer♂":             "Spr FRLG Swimmer M.png",
+    "Swimmer♀":             "Spr FRLG Swimmer F.png",
+
+    # Rocket Grunts: gendered + generic fallback
+    "Team Rocket Grunt♂":   "Spr FRLG Team Rocket Grunt M.png",
+    "Team Rocket Grunt♀":   "Spr FRLG Team Rocket Grunt F.png",
+    "Team Rocket Grunt":    "Spr FRLG Team Rocket Grunt M.png",
 
     # Blue / Rival fallbacks (special logic already picks the exact ones by meeting)
     "Rival":            "Spr FRLG Blue 1.png",
@@ -2957,11 +2990,18 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
+                    # Wrap the card and the invisible button so the entire card is clickable
+                    st.markdown('<div class="opp-card-wrapper">', unsafe_allow_html=True)
                     st.markdown(card_html, unsafe_allow_html=True)
-                    if st.button(
-                        "Select",
+
+                    clicked = st.button(
+                        " ",  # label is invisible via CSS
                         key=f"opp_select_{selected_enc_idx}_{idx}",
-                    ):
+                    )
+
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                    if clicked:
                         STATE["last_battle_pick"] = [selected_enc_idx, idx]
                         save_state(STATE)
                         do_rerun()
