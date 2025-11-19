@@ -3050,16 +3050,16 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
-                    # Wrap the card and the invisible button so the entire card is clickable
-                    st.markdown('<div class="opp-card-wrapper">', unsafe_allow_html=True)
-                    st.markdown(card_html, unsafe_allow_html=True)
-
-                    clicked = st.button(
-                        " ",  # label is invisible via CSS
-                        key=f"opp_select_{selected_enc_idx}_{idx}",
-                    )
-
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    card_box = st.container()
+                    with card_box:
+                        left_c, right_c = st.columns([5, 1])
+                        with left_c:
+                            st.markdown(card_html, unsafe_allow_html=True)
+                        with right_c:
+                            clicked = st.button(
+                                "Select",
+                                key=f"opp_select_{selected_enc_idx}_{idx}",
+                            )
 
                     if clicked:
                         STATE["last_battle_pick"] = [selected_enc_idx, idx]
