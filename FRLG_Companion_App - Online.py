@@ -1286,14 +1286,6 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
                 if mtype:
                     ensure_move_in_db(move_name, default_type=mtype)
                     typed_moves.append((move_name, mtype))
-            else:
-                # fallback to local moves_db type if we have it
-                mtype = normalize_type(
-                    STATE["moves_db"].get(norm_key(mv), {}).get("type", "")
-                )
-                if mtype:
-                    ensure_move_in_db(mv, default_type=mtype)
-                    typed_moves.append((mv, mtype))
         mon = {
             "species": sp["name"],
             "level": int(level),
