@@ -326,22 +326,41 @@ st.markdown("""
   align-items: center;
   background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2));
   cursor: pointer;
-}
-
-/* Wrapper around each opponent card so we can position the Select button
-   *inside* the card without touching buttons elsewhere. */
-.opp-card-wrapper {
   position: relative;
 }
 
-/* Streamlit renders the Select button as a sibling after the card.
-   Move that button up into the right side of the card area. */
-.opp-card-wrapper + div[data-testid="stButton"] {
-  margin-top: -50px;      /* vertical position inside the card */
-  margin-bottom: 0;
-  width: 100%;
+/* Right-aligned Select-button area inside the card */
+.opp-card-select {
+  margin-left: auto;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+}
+
+/* The in-card Select button */
+.opp-card-select-btn {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255,255,255,0.4);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #ffffff;
+  background: rgba(37,99,235,0.95);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+  transition: transform 0.05s ease-out, box-shadow 0.05s ease-out, background 0.05s ease-out;
+}
+
+.opp-card-select-btn:hover {
+  background: rgba(59,130,246,1);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+  transform: translateY(-1px);
+}
+
+.opp-card-select-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 .opp-card-selected {
@@ -3004,26 +3023,15 @@ def render_battle():
                         <span class="opp-card-moves-label">Moves:</span> {moves_txt}
                       </div>
                     </div>
+                    <div class="opp-card-select">
+                      <a class="opp-card-select-btn" href="?enc={selected_enc_idx}&mon={idx}">Select</a>
+                    </div>
                   </div>
                 """
 
                 with cols[col_pos]:
-                    # Wrap the card in a marker div so CSS can pull the button inside the card
-                    st.markdown(
-                        f'<div class="opp-card-wrapper">{card_html}</div>',
-                        unsafe_allow_html=True,
-                    )
-
-                    # Normal Streamlit Select button; CSS just moves it visually into the card
-                    clicked = st.button(
-                        "Select",
-                        key=f"opp_select_{selected_enc_idx}_{idx}",
-                    )
-
-                    if clicked:
-                        STATE["last_battle_pick"] = [selected_enc_idx, idx]
-                        save_state(STATE)
-                        do_rerun()
+                    # Full card including in-card Select button (HTML link)
+                    st.markdown(card_html, unsafe_allow_html=True)
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
