@@ -332,22 +332,32 @@ st.markdown("""
 }
 
 /* Streamlit renders the button *after* the card in its own container.
-   We grab that sibling and turn its button into a full-card invisible click target. */
+   Grab that sibling and stretch it over the card. */
 .opp-card-wrapper + div[data-testid="stButton"] {
   /* Pull the button container up so it overlaps the card */
-  margin-top: -110px;   /* approximate card height; tweak if needed */
+  margin-top: -110px;            /* approximate card height; tweak if needed */
+  height: 110px;                 /* same as the card area we want clickable */
+  width: 100%;                   /* span the full column width */
+  display: block;                /* make sure it expands horizontally */
 }
 
 /* Make that button cover the card and be invisible */
 .opp-card-wrapper + div[data-testid="stButton"] > button {
   width: 100%;
-  height: 110px;        /* match the negative margin above */
+  height: 100%;                  /* fill the container */
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
   cursor: pointer;
   color: transparent !important;
+}
+
+/* No hover highlight, no focus ring box-shadow around the card */
+.opp-card-wrapper + div[data-testid="stButton"] > button:hover,
+.opp-card-wrapper + div[data-testid="stButton"] > button:focus {
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 /* No hover highlight, no focus ring box-shadow around the card */
@@ -1266,26 +1276,39 @@ def load_venusaur_sheet(csv_text: str) -> List[Dict]:
 
         # Column G (index 6) holds the *exact* move this Pokémon uses in the sheet.
         # We take only that cell, keep it if it is a damaging move, and type it.
+        # Columns G–J (indices 6–9) hold up to 4 moves for this Pokémon.
+        # We take those cells, keep only damaging + allowed moves, and type them.
         typed_moves: List[Tuple[str, str]] = []
+        seen_moves: set[str] = set()
 
-        move_cell = ""
-        if len(r) > 6:
-            move_cell = clean_invisibles(r[6]).strip()
+        # Limit to 4 move columns: G, H, I, J → indices 6–9
+        for col in range(6, min(len(r), 10)):
+            raw_cell = clean_invisibles(r[col]).strip()
+            if not raw_cell:
+                continue
 
-        if move_cell:
-            info = lookup_move(move_cell)
+            info = lookup_move(raw_cell)
             # Canonical name if we know it, otherwise raw text
-            move_name = (info.get("name", move_cell) if info else move_cell)
+            move_name = (info.get("name", raw_cell) if info else raw_cell)
+            key = move_name.lower()
 
-            # Throw away non-damaging and globally excluded moves
-            if move_is_damaging(move_name) and move_name.lower() not in FRLG_EXCLUDE_MOVES:
-                mtype = normalize_type(
-                    (info.get("type") if info else None)
-                    or STATE["moves_db"].get(norm_key(move_name), {}).get("type", "")
-                )
-                if mtype:
-                    ensure_move_in_db(move_name, default_type=mtype)
-                    typed_moves.append((move_name, mtype))
+            # Avoid duplicates and excluded moves
+            if key in seen_moves:
+                continue
+            if not move_is_damaging(move_name) or key in FRLG_EXCLUDE_MOVES:
+                continue
+
+            # Determine move type (from lookup or cached moves db)
+            mtype = normalize_type(
+                (info.get("type") if info else None)
+                or STATE["moves_db"].get(norm_key(move_name), {}).get("type", "")
+            )
+            if not mtype:
+                continue
+
+            ensure_move_in_db(move_name, default_type=mtype)
+            typed_moves.append((move_name, mtype))
+            seen_moves.add(key)
         mon = {
             "species": sp["name"],
             "level": int(level),
@@ -1556,25 +1579,21 @@ def _dex_num_for_name_cached(name: str) -> Optional[int]:
 
 def _bulba_frlg_sprite_url(num: int) -> Optional[str]:
     """
-    Build a stable Bulbagarden Archives URL for the FRLG-style sprite.
+    Build a Bulbagarden Archives URL for the FRLG-style sprite.
 
-    1–151  → Spr_3f_XXX.png  (FRLG Kanto set)
+    1–151   → Spr_3f_XXX.png (FRLG Kanto set)
     152–386 → Spr_3r_XXX.png (rest of the Gen 3 FRLG set)
 
-    Uses the standard MediaWiki MD5 path layout.
+    Uses Special:FilePath so we don't rely on the MD5 upload path.
     """
     try:
         if not isinstance(num, int) or num < 1 or num > 386:
             return None
 
-        # Kanto uses the '3f' set, 152+ use the '3r' set.
         prefix = "3f" if num <= 151 else "3r"
         fname = f"Spr_{prefix}_{num:03d}.png"
-
-        h = hashlib.md5(fname.encode("utf-8")).hexdigest()
-        d1 = h[0]
-        d2 = h[:2]
-        return f"https://archives.bulbagarden.net/media/upload/{d1}/{d2}/{fname}"
+        safe_name = quote(fname.replace(" ", "_"))
+        return f"https://archives.bulbagarden.net/wiki/Special:FilePath/{safe_name}"
     except Exception:
         return None
 
@@ -1626,6 +1645,7 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Camper", ["camper"]),
     ("Picnicker", ["picnicker"]),
     ("Fisherman", ["fisher", "fisherman"]),
+    ("Engineer", ["engineer"]),
     ("Hiker", ["hiker"]),
     ("Sailor", ["sailor"]),
     ("Bird Keeper", ["bird keeper"]),
@@ -1636,7 +1656,7 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Super Nerd", ["super nerd"]),
     ("Juggler", ["juggler"]),
     ("Tamer", ["tamer"]),
-    ("Gambler", ["gambler", "gamer"]),
+    ("Gamer", ["gamer", "gambler"]),
     ("Cue Ball", ["cue ball"]),
     ("Rocker", ["rocker"]),
     ("Biker", ["biker"]),
@@ -1750,6 +1770,7 @@ FRLG_TRAINER_SPRITES: Dict[str, str] = {
     "Picnicker":        "Spr FRLG Picnicker.png",
     "Hiker":            "Spr FRLG Hiker.png",
     "Fisherman":        "Spr FRLG Fisherman.png",
+    "Engineer":         "Spr FRLG Engineer.png",
     "Sailor":           "Spr FRLG Sailor.png",
     "Bird Keeper":      "Spr FRLG Bird Keeper.png",
     "Blackbelt":        "Spr FRLG Black Belt.png",
@@ -1760,7 +1781,7 @@ FRLG_TRAINER_SPRITES: Dict[str, str] = {
     "Super Nerd":       "Spr FRLG Super Nerd.png",
     "Juggler":          "Spr FRLG Juggler.png",
     "Tamer":            "Spr FRLG Tamer.png",
-    "Gambler":          "Spr FRLG Gambler.png",
+    "Gamer":            "Spr FRLG Gamer.png",
     "Cue Ball":         "Spr FRLG Cue Ball.png",
     "Rocker":           "Spr FRLG Rocker.png",
     "Biker":            "Spr FRLG Biker.png",
