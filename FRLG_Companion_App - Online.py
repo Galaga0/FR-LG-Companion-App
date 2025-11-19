@@ -331,21 +331,25 @@ st.markdown("""
   position: relative;
 }
 
-/* Generic Streamlit button cleanup: no big rounded squares everywhere */
-div.stButton > button {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0.1rem 0.4rem !important;
-  border-radius: 6px !important;
+/* Streamlit renders the button *after* the card in its own container.
+   For opponent cards, position that button inside the card on the right side. */
+.opp-card-wrapper + div[data-testid="stButton"] {
+  margin-top: -70px;      /* move the button up into the card area */
+  margin-bottom: 0;
+  width: 100%;            /* align with the card width */
+  display: flex;
+  justify-content: flex-end;  /* push button to the right edge */
 }
 
-/* Keep hover/focus subtle, not glowy blobs */
-div.stButton > button:hover,
-div.stButton > button:focus {
-  box-shadow: none !important;
-  outline: none !important;
-  background: rgba(148,163,184,0.15) !important;
+/* Style the small 'Select' button that sits inside the card */
+.opp-card-wrapper + div[data-testid="stButton"] > button {
+  background: rgba(15,23,42,0.9) !important;
+  border: 1px solid rgba(148,163,184,0.9) !important;
+  border-radius: 999px !important;
+  padding: 0.20rem 0.9rem !important;
+  font-size: 0.8rem !important;
+  color: #e5e7eb !important;
+  box-shadow: 0 0 4px rgba(15,23,42,0.8) !important;
 }
 
 .opp-card-selected {
