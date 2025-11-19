@@ -331,40 +331,21 @@ st.markdown("""
   position: relative;
 }
 
-/* Streamlit renders the button *after* the card in its own container.
-   Grab that sibling and stretch it over the card. */
-.opp-card-wrapper + div[data-testid="stButton"] {
-  /* Pull the button container up so it overlaps the card */
-  margin-top: -110px;            /* approximate card height; tweak if needed */
-  height: 110px;                 /* same as the card area we want clickable */
-  width: 100%;                   /* span the full column width */
-  display: block;                /* make sure it expands horizontally */
-}
-
-/* Make that button cover the card and be invisible */
-.opp-card-wrapper + div[data-testid="stButton"] > button {
-  width: 100%;
-  height: 100%;                  /* fill the container */
+/* Generic Streamlit button cleanup: no big rounded squares everywhere */
+div.stButton > button {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  padding: 0 !important;
-  cursor: pointer;
-  color: transparent !important;
+  padding: 0.1rem 0.4rem !important;
+  border-radius: 6px !important;
 }
 
-/* No hover highlight, no focus ring box-shadow around the card */
-.opp-card-wrapper + div[data-testid="stButton"] > button:hover,
-.opp-card-wrapper + div[data-testid="stButton"] > button:focus {
+/* Keep hover/focus subtle, not glowy blobs */
+div.stButton > button:hover,
+div.stButton > button:focus {
   box-shadow: none !important;
   outline: none !important;
-}
-
-/* No hover highlight, no focus ring box-shadow around the card */
-.opp-card-wrapper + div[data-testid="stButton"] > button:hover,
-.opp-card-wrapper + div[data-testid="stButton"] > button:focus {
-  box-shadow: none !important;
-  outline: none !important;
+  background: rgba(148,163,184,0.15) !important;
 }
 
 .opp-card-selected {
@@ -1558,7 +1539,9 @@ def _dex_num_for_name_cached(name: str) -> Optional[int]:
     except Exception:
         return None
 
-    sid = ps_id(name)
+    # Clean up weird spaces / non-breaking spaces from sheet etc.
+    cleaned = clean_invisibles(str(name))
+    sid = ps_id(cleaned)
     maxdex = 386
 
     rec = dex.get(sid)
@@ -1647,10 +1630,14 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Fisherman", ["fisher", "fisherman"]),
     ("Engineer", ["engineer"]),
     ("Hiker", ["hiker"]),
-    ("Sailor", ["sailor"]),
+    ("Sailor", ["sailor", "saillor"]),
     ("Bird Keeper", ["bird keeper"]),
     ("Blackbelt", ["blackbelt", "black belt"]),
     ("Beauty", ["beauty"]),
+    ("Gentleman", ["gentleman", "gentlman"]),
+    ("Twins", ["twins"]),
+    ("Young Couple", ["young couple", "youngcouple"]),
+    ("Sis and Bro", ["sis and bro", "sis & bro"]),
     ("Psychic", ["psychic"]),
     ("Pokémaniac", ["pokémaniac", "pokemaniac"]),
     ("Super Nerd", ["super nerd"]),
@@ -1660,6 +1647,18 @@ FRLG_TRAINER_CLASS_KEYWORDS = [
     ("Cue Ball", ["cue ball"]),
     ("Rocker", ["rocker"]),
     ("Biker", ["biker"]),
+    ("Burglar", ["burglar"]),
+    ("Aroma Lady", ["aroma lady"]),
+    ("Tuber", ["tuber"]),
+    ("Cool Couple", ["cool couple"]),
+    ("Channeler", ["channeler", "channeller"]),
+    ("Crush Girl", ["crush girl"]),
+    ("Crush Kin", ["crush kin"]),
+    ("Pokémon Ranger", ["pokemon ranger", "pokémon ranger"]),
+    ("Pokémon Breeder", ["pokemon breeder", "pokémon breeder"]),
+    ("Painter", ["painter"]),
+    ("Lady", ["lady "]),
+    ("Ruin Maniac", ["ruin maniac"]),
 
     # Gym Leaders & E4 – same as before
     ("Gym Leader Brock", ["brock"]),
@@ -1701,7 +1700,7 @@ def trainer_class_from_label(label: str) -> str:
         return tokens[0].capitalize()
 
     # 3) Refine gendered classes based on name
-    if base_cls in ("Cooltrainer", "Swimmer", "Team Rocket Grunt"):
+    if base_cls in ("Cooltrainer", "Swimmer", "Team Rocket Grunt", "Psychic", "Pokémon Ranger"):
         # Try to extract a name/gender token from the label.
         # Strategy: last alphabetic token in the label, so this works for:
         #   "Cool Trainer Leroy #2", "Swimmer Anna", "Team Rocket Grunt F", etc.
@@ -1716,8 +1715,13 @@ def trainer_class_from_label(label: str) -> str:
         female_markers = {"michelle", "anna", "jessica", "sarah", "amber", "megan", "linda", "f", "♀"}
         male_markers = {"leroy", "kevin", "mark", "gary", "john", "m", "♂"}
 
-        cls_m = base_cls + "♂"
-        cls_f = base_cls + "♀"
+        # Default suffix style depends on class
+        if base_cls in ("Psychic", "Pokémon Ranger"):
+            cls_m = base_cls + " M"
+            cls_f = base_cls + " F"
+        else:
+            cls_m = base_cls + "♂"
+            cls_f = base_cls + "♀"
 
         if name_token:
             n = name_token.lower()
@@ -1777,7 +1781,7 @@ FRLG_TRAINER_SPRITES: Dict[str, str] = {
     "Beauty":           "Spr FRLG Beauty.png",
     "Psychic":          "Spr FRLG Psychic.png",
     "Scientist":        "Spr FRLG Scientist.png",
-    "Pokémaniac":       "Spr FRLG Pokemaniac.png",
+    "Pokémaniac":       "Spr FRLG PokéManiac.png",
     "Super Nerd":       "Spr FRLG Super Nerd.png",
     "Juggler":          "Spr FRLG Juggler.png",
     "Tamer":            "Spr FRLG Tamer.png",
@@ -1785,6 +1789,25 @@ FRLG_TRAINER_SPRITES: Dict[str, str] = {
     "Cue Ball":         "Spr FRLG Cue Ball.png",
     "Rocker":           "Spr FRLG Rocker.png",
     "Biker":            "Spr FRLG Biker.png",
+    "Gentleman":        "Spr FRLG Gentleman.png",
+    "Twins":            "Spr FRLG Twins.png",
+    "Young Couple":     "Spr FRLG Young Couple.png",
+    "Sis and Bro":      "Spr FRLG Sis and Bro.png",
+    "Burglar":          "Spr FRLG Burglar.png",
+    "Aroma Lady":       "Spr FRLG Aroma Lady.png",
+    "Tuber":            "Spr FRLG Tuber.png",
+    "Cool Couple":      "Spr FRLG Cool Couple.png",
+    "Channeler":        "Spr FRLG Channeler.png",
+    "Crush Girl":       "Spr FRLG Crush Girl.png",
+    "Crush Kin":        "Spr FRLG Crush Kin.png",
+    "Psychic F":        "Spr FRLG Psychic F.png",
+    "Psychic M":        "Spr FRLG Psychic M.png",
+    "Pokémon Ranger F": "Spr FRLG Pokémon Ranger F.png",
+    "Pokémon Ranger M": "Spr FRLG Pokémon Ranger M.png",
+    "Pokémon Breeder":  "Spr FRLG Pokémon Breeder.png",
+    "Painter":          "Spr FRLG Painter.png",
+    "Lady":             "Spr FRLG Lady.png",
+    "Ruin Maniac":      "Spr FRLG Ruin Maniac.png",
     "Cooltrainer♂":         "Spr FRLG Cooltrainer M.png",
     "Cooltrainer♀":         "Spr FRLG Cooltrainer F.png",
     "Swimmer♂":             "Spr FRLG Swimmer M.png",
@@ -1848,10 +1871,13 @@ def _blue_sprite_filename_for_meeting(label: str) -> Optional[str]:
     label_str = str(label or "")
     s_label = label_str.lower()
 
+    # Normalise out punctuation so "S.S. Anne" matches "ss anne"
+    s_clean = re.sub(r"[^a-z0-9 ]", "", s_label)
+
     # 1) Explicit label overrides
     try:
         for key, variant in BLUE_LABEL_OVERRIDES.items():
-            if key in s_label:
+            if key in s_clean:
                 return BLUE_SPRITE_VARIANTS.get(variant)
     except Exception:
         pass
