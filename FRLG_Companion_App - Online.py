@@ -310,6 +310,7 @@ st.markdown("""
   .moves-grid th, .moves-grid td { color: #111 !important; }
   .moves-grid th, .moves-grid td { border-bottom-color: var(--grid-underline-light) !important; }
 }
+
 /* Opponent Pokémon cards on Battle page */
 .opp-card {
   /* default gradient, can be overridden per-card via inline CSS vars */
@@ -327,69 +328,26 @@ st.markdown("""
   cursor: pointer;
 }
 
+/* Wrapper around each opponent card so we can position the Select button
+   *inside* the card without touching buttons elsewhere. */
 .opp-card-wrapper {
   position: relative;
 }
 
-/* Streamlit renders the button *after* the card in its own container.
-   For opponent cards, position that button inside the card on the right side. */
+/* Streamlit renders the Select button as a sibling after the card.
+   Move that button up into the right side of the card area. */
 .opp-card-wrapper + div[data-testid="stButton"] {
-  margin-top: -70px;      /* move the button up into the card area */
+  margin-top: -50px;      /* vertical position inside the card */
   margin-bottom: 0;
-  width: 100%;            /* align with the card width */
+  width: 100%;
   display: flex;
-  justify-content: flex-end;  /* push button to the right edge */
-}
-
-/* Style the small 'Select' button that sits inside the card */
-.opp-card-wrapper + div[data-testid="stButton"] > button {
-  background: rgba(15,23,42,0.9) !important;
-  border: 1px solid rgba(148,163,184,0.9) !important;
-  border-radius: 999px !important;
-  padding: 0.20rem 0.9rem !important;
-  font-size: 0.8rem !important;
-  color: #e5e7eb !important;
-  box-shadow: 0 0 4px rgba(15,23,42,0.8) !important;
+  justify-content: flex-end;
 }
 
 .opp-card-selected {
   border-color: rgba(56,189,248,1);
   border-width: 2px;
   box-shadow: 0 0 0 2px rgba(56,189,248,0.9), 0 0 12px rgba(56,189,248,0.6);
-}
-
-.opp-card-sprite img {
-  image-rendering: pixelated;
-}
-
-.opp-card-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 13px;
-}
-
-.opp-card-name {
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.opp-card-types {
-  opacity: 0.92;
-}
-
-.opp-card-total {
-  font-size: 12px;
-  opacity: 0.9;
-}
-
-.opp-card-moves {
-  font-size: 11px;
-  opacity: 0.9;
-}
-
-.opp-card-moves-label {
-  font-weight: 600;
 }
 
 .opp-card-sprite img {
@@ -3050,16 +3008,17 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
-                    card_box = st.container()
-                    with card_box:
-                        left_c, right_c = st.columns([5, 1])
-                        with left_c:
-                            st.markdown(card_html, unsafe_allow_html=True)
-                        with right_c:
-                            clicked = st.button(
-                                "Select",
-                                key=f"opp_select_{selected_enc_idx}_{idx}",
-                            )
+                    # Wrap the card in a marker div so CSS can pull the button inside the card
+                    st.markdown(
+                        f'<div class="opp-card-wrapper">{card_html}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                    # Normal Streamlit Select button; CSS just moves it visually into the card
+                    clicked = st.button(
+                        "Select",
+                        key=f"opp_select_{selected_enc_idx}_{idx}",
+                    )
 
                     if clicked:
                         STATE["last_battle_pick"] = [selected_enc_idx, idx]
