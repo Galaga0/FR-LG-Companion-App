@@ -452,25 +452,79 @@ st.markdown("""
   opacity: 0.95;
 }
 
-/* Evolution page: per-evolution row cards with TWO gradients
-   Top half = current mon types, bottom half = target mon types */
+/* Evolution Watch: one HTML row that actually contains its content */
 .evo-row-card{
   --evo-top1: rgba(148,163,184,0.22);
   --evo-top2: rgba(15,23,42,0.0);
   --evo-bot1: rgba(148,163,184,0.22);
   --evo-bot2: rgba(15,23,42,0.0);
 
+  position: relative;
+  overflow: hidden;
+
   border-radius: 14px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
   margin: 8px 0;
 
-  background-image:
-    radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2)),
-    radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
-  background-size: 100% 50%, 100% 50%;
-  background-position: top, bottom;
-  background-repeat: no-repeat;
+  background: transparent;
+}
+
+/* Top gradient strip only */
+.evo-row-card::before{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 52%;
+  background: radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2));
+  pointer-events: none;
+}
+
+/* Bottom gradient strip only */
+.evo-row-card::after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 52%;
+  background: radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
+  pointer-events: none;
+}
+
+/* Ensure content sits above the pseudo-elements */
+.evo-row-card > *{
+  position: relative;
+}
+
+/* 6-column layout (replaces st.columns for the row) */
+.evo-grid{
+  display: grid;
+  grid-template-columns: 3fr 2fr 2fr 3fr 2fr 2fr;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Link styled like a button */
+.evo-link-btn{
+  display: inline-block;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(37,99,235,0.95);
+  color: #fff;
+}
+
+.evo-link-btn:hover{
+  background: rgba(59,130,246,1);
+}
+
+.evo-link-btn.disabled{
+  opacity: 0.45;
+  pointer-events: none;
+  background: rgba(100,116,139,0.8);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -3589,6 +3643,55 @@ def render_evo_watch():
 
     rebuild_moves_default = False  # keep current behavior
 
+    # ---- Handle evolve clicks via query params (so HTML rows can trigger actions)
+    try:
+        q = st.experimental_get_query_params()
+        evo_guid = q.get("evo_guid", [None])[0]
+        evo_to = q.get("evo_to", [None])[0]
+        evo_force = q.get("evo_force", [None])[0]
+
+        if evo_guid and evo_to:
+            do_force = (str(evo_force) == "1")
+
+            # Find the mon by guid
+            target_mon = None
+            for _m in STATE.get("roster", []):
+                if str(_m.get("guid")) == str(evo_guid):
+                    target_mon = _m
+                    break
+
+            if target_mon:
+                # Recompute evo row data so we know requirements
+                opts = available_evos_for(target_mon.get("species", "")) or []
+                rows = [evo_row(target_mon, o) for o in opts]
+                row = next((rr for rr in rows if str(rr.get("to")) == str(evo_to)), None)
+
+                if row:
+                    ready_now = bool(row.get("ready")) or bool(do_force)
+
+                    if ready_now:
+                        # Consume stone only if actually ready and not forcing
+                        if row.get("method") == "item" and row.get("item") in items and row.get("ready") and not do_force:
+                            if int(STATE["stones"].get(row["item"], 0)) <= 0:
+                                st.error(f"No {row['item']} left.")
+                            else:
+                                STATE["stones"][row["item"]] -= 1
+                                save_state(STATE)
+
+                        if evolve_mon_record(target_mon, evo_to, rebuild_moves=rebuild_moves_default):
+                            save_state(STATE)
+                            st.success(f"Evolved into {evo_to}.")
+                        else:
+                            st.error("Evolution failed (species not in database).")
+                    else:
+                        st.error("Not ready to evolve.")
+
+            # Clear params so refresh doesn’t repeat the evolve
+            st.experimental_set_query_params()
+            do_rerun()
+    except Exception:
+        pass
+
     # ---- Helpers
     def evo_row(mon: dict, opt: dict) -> dict:
         lvl = int(mon.get("level", 1))
@@ -3762,48 +3865,38 @@ def render_evo_watch():
                     bot_vars = _evo_gradient_vars("evo-bot", tgt_t1, tgt_t2)
                     row_style = f"{top_vars}{bot_vars}"
 
-                    # Open wrapper div so the Streamlit columns render inside it
-                    st.markdown(f"<div class='evo-row-card' style='{row_style}'>", unsafe_allow_html=True)
+                    method_map = {
+                        "level": "Level",
+                        "item": "Use Item",
+                        "trade": "Trade",
+                        "manual": "Manual",
+                    }
+                    method_pretty = method_map.get(r.get("method") or "manual", "Manual")
 
-                    c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 2, 3, 2, 2])
+                    ready_now = bool(r.get("ready")) or bool(force_all)
 
-                    target_html = f"{sprite_img_html(tgt_name)}{tgt_name}"
-                    c1.markdown(target_html, unsafe_allow_html=True)
+                    # Build link-based action so the whole row can be one HTML block
+                    evo_guid = str(mon.get("guid"))
+                    evo_to = str(tgt_name)
+                    evo_force = "1" if (force_all and not bool(r.get("ready"))) else "0"
 
-                    method_pretty = {"level": "Level", "Use item": "Use Item", "item": "Use Item", "trade": "Trade", "manual": "Manual"}[r["method"]]
-                    if r["method"] == "item":
-                        method_pretty = "Use Item"
-                    c2.markdown(f"<span class='badge {r['badge']}'>{method_pretty}</span>", unsafe_allow_html=True)
-                    c3.write(r["req_txt"])
-                    c4.markdown(
-                        f"<span class='badge {'b-ready' if r['ready'] else 'b-wait'}'>{r['status']}</span>",
-                        unsafe_allow_html=True,
-                    )
-                    c5.write(f"{r['from_total']} → {r['to_total']}")
+                    href = f"?evo_guid={quote(evo_guid)}&evo_to={quote(evo_to)}&evo_force={evo_force}"
+                    link_class = "evo-link-btn" if ready_now else "evo-link-btn disabled"
+                    link_label = f"Evolve → {tgt_name}" + (" [force]" if evo_force == "1" else "")
 
-                    ready_now = r["ready"] or force_all
-                    btn_label = f"Evolve → {tgt_name}" + (" [force]" if force_all and not r["ready"] else "")
-                    if ready_now:
-                        if c6.button(btn_label, key=f"evo_watch_btn_{mon['guid']}_{idx}"):
-                            # Consume stone only when requirement is met and not forcing
-                            if r["method"] == "item" and r.get("item") in items and r["ready"] and not force_all:
-                                if STATE['stones'].get(r["item"], 0) <= 0:
-                                    st.error(f"No {r['item']} left.")
-                                    do_rerun()
-                                else:
-                                    STATE['stones'][r["item"]] -= 1
-                                    save_state(STATE)
-                            if evolve_mon_record(mon, tgt_name, rebuild_moves=rebuild_moves_default):
-                                save_state(STATE)
-                                st.success(f"Evolved into {tgt_name}.")
-                                do_rerun()
-                            else:
-                                st.error("Evolution failed (species not in database).")
-                    else:
-                        c6.caption("—")
-
-                    # Close wrapper div
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    row_html = f"""
+                        <div class="evo-row-card" style="{row_style}">
+                            <div class="evo-grid">
+                                <div>{sprite_img_html(tgt_name)}{tgt_name}</div>
+                                <div><span class="badge {r['badge']}">{method_pretty}</span></div>
+                                <div>{r["req_txt"]}</div>
+                                <div><span class="badge {'b-ready' if r['ready'] else 'b-wait'}">{r["status"]}</span></div>
+                                <div>{r["from_total"]} → {r["to_total"]}</div>
+                                <div><a class="{link_class}" href="{href}">{link_label}</a></div>
+                            </div>
+                        </div>
+                    """
+                    st.markdown(row_html, unsafe_allow_html=True)
 
 def render_saveload():
     st.header("Save / Load")
