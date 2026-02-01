@@ -624,71 +624,77 @@ st.markdown("""
 /* --- Pokédex card gradients (NO JS) --- */
 .dex-grad-marker{ display:none; }
 
-/* Style the bordered container that contains our marker */
+/* Border wrapper */
 div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker){
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(148,163,184,.7);
 }
 
-/* Make inner Streamlit blocks transparent so the wrapper gradient shows */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) > div,
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) div[data-testid="stVerticalBlock"],
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) div{
+/* IMPORTANT: Mal på wrapperens første child (det er den, der fylder visuelt) */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) > div{
+  border-radius: 14px;
+  /* fallback */
+  background: radial-gradient(circle at top left, rgba(148,163,184,0.22), rgba(15,23,42,0.0));
+}
+
+/* Gør kun INDHOLD inde i child transparent (ikke selve child’en!) */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) > div > div,
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) > div > div *{
   background-color: transparent !important;
   background-image: none !important;
 }
 
-/* Primary-type gradients */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-fire){
+/* Type-gradients: sæt dem på > div (ikke på wrapperen) */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-fire) > div{
   background: radial-gradient(circle at top left, rgba(248,113,113,0.85), rgba(239,68,68,0.75));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-water){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-water) > div{
   background: radial-gradient(circle at top left, rgba(56,189,248,0.85), rgba(59,130,246,0.75));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-electric){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-electric) > div{
   background: radial-gradient(circle at top left, rgba(250,204,21,0.90), rgba(234,179,8,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-grass){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-grass) > div{
   background: radial-gradient(circle at top left, rgba(52,211,153,0.85), rgba(34,197,94,0.75));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ice){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ice) > div{
   background: radial-gradient(circle at top left, rgba(125,211,252,0.90), rgba(59,130,246,0.75));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-fighting){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-fighting) > div{
   background: radial-gradient(circle at top left, rgba(248,113,113,0.90), rgba(220,38,38,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-poison){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-poison) > div{
   background: radial-gradient(circle at top left, rgba(192,132,252,0.90), rgba(168,85,247,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ground){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ground) > div{
   background: radial-gradient(circle at top left, rgba(234,179,8,0.90), rgba(202,138,4,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-flying){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-flying) > div{
   background: radial-gradient(circle at top left, rgba(129,140,248,0.90), rgba(59,130,246,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-psychic){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-psychic) > div{
   background: radial-gradient(circle at top left, rgba(244,114,182,0.90), rgba(236,72,153,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-bug){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-bug) > div{
   background: radial-gradient(circle at top left, rgba(190,242,100,0.90), rgba(132,204,22,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-rock){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-rock) > div{
   background: radial-gradient(circle at top left, rgba(253,186,116,0.90), rgba(234,179,8,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ghost){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ghost) > div{
   background: radial-gradient(circle at top left, rgba(167,139,250,0.90), rgba(129,140,248,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-dragon){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-dragon) > div{
   background: radial-gradient(circle at top left, rgba(96,165,250,0.90), rgba(37,99,235,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-dark){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-dark) > div{
   background: radial-gradient(circle at top left, rgba(31,41,55,0.95), rgba(15,23,42,0.90));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-steel){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-steel) > div{
   background: radial-gradient(circle at top left, rgba(148,163,184,0.90), rgba(75,85,99,0.80));
 }
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-normal){
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-normal) > div{
   background: radial-gradient(circle at top left, rgba(209,213,219,0.85), rgba(156,163,175,0.75));
 }
 
