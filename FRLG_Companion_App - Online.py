@@ -452,7 +452,6 @@ st.markdown("""
   opacity: 0.95;
 }
 
-/* Evolution Watch: one HTML row that actually contains its content */
 .evo-row-card{
   --evo-top1: rgba(148,163,184,0.22);
   --evo-top2: rgba(15,23,42,0.0);
@@ -467,32 +466,10 @@ st.markdown("""
   border: 1px solid rgba(148,163,184,.7);
   margin: 8px 0;
 
-  background: transparent;
-}
-
-/* Top gradient strip only */
-.evo-row-card::before{
-  content: "";
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 52%;
-  background: radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2));
-  pointer-events: none;
-}
-
-/* Bottom gradient strip only */
-.evo-row-card::after{
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 52%;
-  background: radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
-  pointer-events: none;
-}
-
-/* Ensure content sits above the pseudo-elements */
-.evo-row-card > *{
-  position: relative;
+  /* Two locked halves: top = current mon, bottom = target mon */
+  background:
+    radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2)) top / 100% 50% no-repeat,
+    radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2)) bottom / 100% 50% no-repeat;
 }
 
 /* 6-column layout (replaces st.columns for the row) */
