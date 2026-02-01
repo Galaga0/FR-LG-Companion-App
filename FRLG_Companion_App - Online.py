@@ -284,6 +284,39 @@ st.markdown("""
   text-align: left;
 }
 
+/* Make evolve action look like a real button */
+.evo-link-btn{
+  display:inline-block;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255,255,255,0.45);
+  background: rgba(37,99,235,0.95);
+  color: #fff !important;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none !important;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  transition: transform .05s ease-out, box-shadow .05s ease-out, background .05s ease-out;
+}
+.evo-link-btn:hover{
+  background: rgba(59,130,246,1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+}
+.evo-link-btn:active{
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+/* Disabled state */
+.evo-link-btn.disabled{
+  opacity: .45;
+  pointer-events: none;
+  background: rgba(100,116,139,0.8);
+  border-color: rgba(255,255,255,0.25);
+  box-shadow: none;
+}
+
 .moves-grid th, .moves-grid td{
   padding: var(--mv-pad-y) var(--mv-pad-x);
   font-size: var(--mv-font);
@@ -465,6 +498,21 @@ st.markdown("""
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
   margin: 8px 0;
+}
+
+/* Header labels row: no gradient, just a neutral bar */
+.evo-header-bar{
+  border-radius: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(148,163,184,.55);
+  background: rgba(255,255,255,0.55);
+  margin: -2px 0 10px 0;
+}
+@media (prefers-color-scheme: dark){
+  .evo-header-bar{
+    background: rgba(15,23,42,0.35);
+    border-color: rgba(148,163,184,.55);
+  }
 }
 
 /* Paint the two halves behind content */
@@ -3855,21 +3903,23 @@ def render_evo_watch():
                 band_style = _cur_band_vars(cur_t1, cur_t2)
 
                 current_band_html = f"""
-                  <div class="evo-current-band" style="{band_style}">
-                    <div class="evo-current-title">
-                      {sprite_img_html(species)}<span><strong>{species} • Lv{lvl}</strong></span>
-                    </div>
-
-                    <div class="evo-grid evo-head">
-                      <div>Target</div>
-                      <div>Method</div>
-                      <div>Requirement</div>
-                      <div>Status</div>
-                      <div>Totals</div>
-                      <div>Action</div>
-                    </div>
+                <div class="evo-current-band" style="{band_style}">
+                  <div class="evo-current-title">
+                    {sprite_img_html(species)}<span><strong>{species} • Lv{lvl}</strong></span>
                   </div>
-                """
+                </div>
+
+                <div class="evo-header-bar">
+                  <div class="evo-grid evo-head">
+                    <div>Target</div>
+                    <div>Method</div>
+                    <div>Requirement</div>
+                    <div>Status</div>
+                    <div>Totals</div>
+                    <div>Action</div>
+                  </div>
+                </div>
+              """
                 st.markdown(current_band_html, unsafe_allow_html=True)
 
                 for idx, r in enumerate(use_rows):
@@ -3887,8 +3937,8 @@ def render_evo_watch():
                     tgt_types = purge_fairy_types_pair((tgt_rec or {}).get("types") or [])
                     tgt_t1, tgt_t2 = tgt_types[0], tgt_types[1]
 
-                    # Build 2-half gradient style
-                    top_vars = _evo_gradient_vars("evo-top", cur_t1, cur_t2)
+                    # Use ONLY target gradient across the whole row (both halves identical)
+                    top_vars = _evo_gradient_vars("evo-top", tgt_t1, tgt_t2)
                     bot_vars = _evo_gradient_vars("evo-bot", tgt_t1, tgt_t2)
                     row_style = f"{top_vars}{bot_vars}"
 
