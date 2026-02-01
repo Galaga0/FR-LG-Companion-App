@@ -465,43 +465,34 @@ st.markdown("""
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
   margin: 8px 0;
-
-  /* Two locked halves: top = current mon, bottom = target mon */
-  background:
-    radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2)) top / 100% 50% no-repeat,
-    radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2)) bottom / 100% 50% no-repeat;
 }
 
-/* 6-column layout (replaces st.columns for the row) */
+/* Paint the two halves behind content */
+.evo-row-card::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+
+  background-image:
+    radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2)),
+    radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
+
+  background-size: 100% 50%, 100% 50%;
+  background-position: top left, bottom left;
+  background-repeat: no-repeat;
+}
+
+/* Keep your grid above the gradient layer */
 .evo-grid{
+  position: relative;
+  z-index: 1;
+
   display: grid;
   grid-template-columns: 3fr 2fr 2fr 3fr 2fr 2fr;
   gap: 10px;
   align-items: center;
-}
-
-/* Link styled like a button */
-.evo-link-btn{
-  display: inline-block;
-  text-align: center;
-  padding: 6px 10px;
-  border-radius: 9999px;
-  font-weight: 700;
-  font-size: 13px;
-  text-decoration: none;
-  border: 1px solid rgba(255,255,255,0.35);
-  background: rgba(37,99,235,0.95);
-  color: #fff;
-}
-
-.evo-link-btn:hover{
-  background: rgba(59,130,246,1);
-}
-
-.evo-link-btn.disabled{
-  opacity: 0.45;
-  pointer-events: none;
-  background: rgba(100,116,139,0.8);
 }
 </style>
 """, unsafe_allow_html=True)
