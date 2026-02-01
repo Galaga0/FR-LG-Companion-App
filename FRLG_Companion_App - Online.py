@@ -3855,9 +3855,6 @@ def render_evo_watch():
     force_all = c2.checkbox("Force evolve (ignore requirements)", key="force_evo")
 
     rebuild_moves_default = False  # keep current behavior
-    
-    except Exception:
-        pass
 
     def _try_evolve(mon_guid: str, evo_to: str, do_force: bool):
         # Find mon
