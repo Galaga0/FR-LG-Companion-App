@@ -488,6 +488,33 @@ st.markdown("""
     radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2)) bottom left / 100% 50% no-repeat;
 }
 
+/* Gradient band for CURRENT (non-evolved) Pokémon area */
+.evo-current-band{
+  --cur1: rgba(148,163,184,0.22);
+  --cur2: rgba(15,23,42,0.0);
+
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148,163,184,.7);
+  margin: 8px 0 10px 0;
+  background: radial-gradient(circle at top left, var(--cur1), var(--cur2));
+}
+
+.evo-current-title{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+/* Use same 6-col grid for the header labels */
+.evo-grid.evo-head > div{
+  font-weight: 700;
+  opacity: 0.95;
+}
+
 /* Keep your grid above the gradient layer */
 .evo-grid{
   position: relative;
@@ -582,6 +609,25 @@ def _evo_gradient_vars(prefix: str, t1: Optional[str], t2: Optional[str]) -> str
 
     # prefix is expected to be "evo-top" or "evo-bot"
     return f"--{prefix}1:{g1};--{prefix}2:{g2};"
+
+def _cur_band_vars(t1: Optional[str], t2: Optional[str]) -> str:
+    primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
+    secondary_type = normalize_type(t2)
+
+    if secondary_type and secondary_type != primary_type:
+        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+        _, g2b = TYPE_GRADIENT.get(
+            secondary_type,
+            TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT),
+        )
+        g1 = g1a
+        g2 = g2b
+    else:
+        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+        g1 = g1a
+        g2 = "rgba(0,0,0,0)"
+
+    return f"--cur1:{g1};--cur2:{g2};"
 
 # Global sprite size (px) so every sprite uses the same visual size
 SPRITE_SIZE = 96
@@ -3803,19 +3849,28 @@ def render_evo_watch():
             use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
 
             with cols[j].container(border=True):
-                header_html = f"{sprite_img_html(species)}<strong>{species} • Lv{lvl}</strong>"
-                st.markdown(header_html, unsafe_allow_html=True)
-                if not use_rows:
-                    st.caption("No evolutions listed or none match filter.")
-                    continue
+                    # current mon types -> gradient for the marked header area
+                    cur_types = purge_fairy_types_pair(mon.get("types") or [])
+                    cur_t1, cur_t2 = cur_types[0], cur_types[1]
+                    band_style = _cur_band_vars(cur_t1, cur_t2)
 
-                h1, h2, h3, h4, h5, h6 = st.columns([3, 2, 2, 3, 2, 2])
-                h1.markdown("**Target**")
-                h2.markdown("**Method**")
-                h3.markdown("**Requirement**")
-                h4.markdown("**Status**")
-                h5.markdown("**Totals**")
-                h6.markdown("**Action**")
+                    current_band_html = f"""
+                      <div class="evo-current-band" style="{band_style}">
+                        <div class="evo-current-title">
+                          {sprite_img_html(species)}<span><strong>{species} • Lv{lvl}</strong></span>
+                        </div>
+
+                        <div class="evo-grid evo-head">
+                          <div>Target</div>
+                          <div>Method</div>
+                          <div>Requirement</div>
+                          <div>Status</div>
+                          <div>Totals</div>
+                          <div>Action</div>
+                        </div>
+                      </div>
+                    """
+                    st.markdown(current_band_html, unsafe_allow_html=True)
 
                 for idx, r in enumerate(use_rows):
                     # Current Pokémon types (top half)
