@@ -3849,8 +3849,12 @@ def render_evo_watch():
     evo_to   = (qp.get("evo_to",   [None])[0] if isinstance(qp.get("evo_to"), list)   else qp.get("evo_to"))
     evo_force = (qp.get("evo_force", [None])[0] if isinstance(qp.get("evo_force"), list) else qp.get("evo_force"))
 
+    # IMPORTANT:
+    # Don't call _try_evolve() yet, because it's defined further down.
+    _pending_evo = None
     if evo_guid and evo_to:
-        _try_evolve(str(evo_guid), str(evo_to), do_force=(str(evo_force).lower() in ("1", "true", "yes", "on")))
+        _pending_evo = (str(evo_guid), str(evo_to), str(evo_force or ""))
+
         # Clear params so it doesn't re-trigger on rerun
         try:
             st.query_params.clear()
@@ -3895,6 +3899,12 @@ def render_evo_watch():
             do_rerun()
         else:
             st.error("Evolution failed (species not in database).")
+
+    # Execute any pending evolve request now that _try_evolve is defined
+    if _pending_evo:
+        _g, _to, _force = _pending_evo
+        _try_evolve(_g, _to, do_force=(_force.lower() in ("1", "true", "yes", "on")))
+        _pending_evo = None
 
     # ---- Helpers
     def evo_row(mon: dict, opt: dict) -> dict:
