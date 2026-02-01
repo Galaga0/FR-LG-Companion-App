@@ -317,6 +317,54 @@ st.markdown("""
   --opp-bg1: rgba(148,163,184,0.22);
   --opp-bg2: rgba(15,23,42,0.0);
 
+/* VS cards (Battle: Your team vs Opponent) */
+.vs-card{
+  --opp-bg1: rgba(148,163,184,0.22);
+  --opp-bg2: rgba(15,23,42,0.0);
+
+  border-radius: 14px;
+  padding: 12px 12px 10px 12px;
+  border: 1px solid rgba(148,163,184,.7);
+  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2));
+}
+
+.vs-card-header{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.vs-card-sprite img{
+  image-rendering: pixelated;
+}
+
+.vs-card-title{
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.vs-card-meta{
+  opacity: 0.92;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.vs-card-scoreline{
+  font-size: 12px;
+  margin-top: 4px;
+  opacity: 0.95;
+}
+
+.vs-card-grid-title{
+  font-weight: 700;
+  font-size: 12px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  opacity: 0.95;
+}
+
   border-radius: 14px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
@@ -442,6 +490,25 @@ TYPE_GRADIENT = {
 }
 
 DEFAULT_CARD_GRADIENT = ("rgba(148,163,184,0.80)", "rgba(75,85,99,0.70)")
+
+def _gradient_style_for_types(t1: Optional[str], t2: Optional[str]) -> str:
+    primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
+    secondary_type = normalize_type(t2)
+
+    if secondary_type and secondary_type != primary_type:
+        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+        _, g2b = TYPE_GRADIENT.get(
+            secondary_type,
+            TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT),
+        )
+        g1 = g1a
+        g2 = g2b
+    else:
+        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+        g1 = g1a
+        g2 = "rgba(0,0,0,0)"
+
+    return f"--opp-bg1:{g1};--opp-bg2:{g2};"
 
 # Global sprite size (px) so every sprite uses the same visual size
 SPRITE_SIZE = 96
@@ -2769,11 +2836,10 @@ def _grade_class(mult: float) -> str:
     if mult == 0.0: return "zero"
     return "bad"
 
-def _render_moves_grid(rows, offense: bool):
+def _moves_grid_html(rows, offense: bool) -> str:
     rows = [r for r in (rows or []) if (r.get("move") or "").strip() and (r.get("type") or "").strip()]
     if not rows:
-        st.caption("—")
-        return
+        return "<div class='small'>—</div>"
 
     if offense:
         rows2 = sorted(rows, key=lambda x: (-x["score"], x["move"] or ""))
@@ -2796,7 +2862,6 @@ def _render_moves_grid(rows, offense: bool):
         type_emo = type_emoji(tp)
         star = " ★" if (score == best_val and mv != "—") else ""
 
-        # HTML arrows; no emojis here
         if score > 0:
             arrow_html = "<span class='up'>&uarr;</span>"
         elif score < 0:
@@ -2814,7 +2879,10 @@ def _render_moves_grid(rows, offense: bool):
         )
 
     html.append("</tbody></table></div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
+    return "".join(html)
+
+def _render_moves_grid(rows, offense: bool):
+    st.markdown(_moves_grid_html(rows, offense=offense), unsafe_allow_html=True)
 
 def render_battle():
     st.header("Battle")
@@ -3295,31 +3363,77 @@ def render_battle():
     st.markdown("---")
     st.subheader(f"Your team vs {current_opp_name}")
 
-    for r in results:
+    # Opponent header info (same opponent every time; grid differs per your mon)
+    opp_species = opmon.get("species", "?")
+    opp_level   = int(opmon.get("level", 1))
+    opp_total   = int(opmon.get("total", 0))
+    opp_types_p = purge_fairy_types_pair(opmon.get("types") or [])
+    opp_t1, opp_t2 = opp_types_p[0], opp_types_p[1]
+
+    opp_type_text = f"{type_emoji(opp_t1)} {opp_t1}" if opp_t1 else "—"
+    if opp_t2:
+        opp_type_text += f" / {opp_t2}"
+
+    opp_moves_txt = ", ".join([f"{mv} ({tp})" for mv, tp in (opp_pairs or [])]) if opp_pairs else "—"
+    opp_style = _gradient_style_for_types(opp_t1, opp_t2)
+    opp_sprite_html = sprite_img_html(opp_species)
+
+    for rank, r in enumerate(results, start=1):
         mon = r["mon"]
         off_sc, off_move, off_mult = r["off"]
         def_sc, def_move, def_mult = r["def"]
         total = r["total_score"]
         my_total = r["my_total"]
 
-        sprite_html = sprite_img_html(mon["species"])
-        line_html = (
-            f"{sprite_html}"
-            f"<strong>{mon['species']}</strong> — "
-            f"(Your Total: {my_total} vs Opp Total: {opp_total}) — "
-            f"Offense: <strong>{off_sc}</strong> | "
-            f"Defense: <strong>{def_sc}</strong> → "
-            f"<strong>Total {total}</strong>"
-        )
-        st.markdown(line_html, unsafe_allow_html=True)
+        my_types_p = purge_fairy_types_pair(mon.get("types") or [])
+        my_t1, my_t2 = my_types_p[0], my_types_p[1]
+        my_type_text = f"{type_emoji(my_t1)} {my_t1}" if my_t1 else "—"
+        if my_t2:
+            my_type_text += f" / {my_t2}"
 
-        st.caption("Your moves vs them:")
-        _render_moves_grid(r["off_rows"], offense=True)
+        my_style = _gradient_style_for_types(my_t1, my_t2)
+        my_sprite_html = sprite_img_html(mon.get("species", "?"))
 
-        st.caption("Their moves vs you:")
-        _render_moves_grid(r["def_rows"], offense=False)
+        left_html = f"""
+          <div class="vs-card" style="{my_style}">
+            <div class="vs-card-header">
+              <div class="vs-card-sprite">{my_sprite_html}</div>
+              <div>
+                <div class="vs-card-title">{rank}. {mon.get('species','?')} • Lv{int(mon.get('level',1))}</div>
+                <div class="vs-card-meta">{my_type_text} • Total {my_total}</div>
+                <div class="vs-card-scoreline">
+                  (Your Total: {my_total} vs Opp Total: {opp_total}) •
+                  Offense <b>{off_sc}</b> | Defense <b>{def_sc}</b> → <b>Total {total}</b>
+                </div>
+              </div>
+            </div>
+            <div class="vs-card-grid-title">Your moves vs them</div>
+            {_moves_grid_html(r.get("off_rows"), offense=True)}
+          </div>
+        """
 
-        st.markdown("---")
+        right_html = f"""
+          <div class="vs-card" style="{opp_style}">
+            <div class="vs-card-header">
+              <div class="vs-card-sprite">{opp_sprite_html}</div>
+              <div>
+                <div class="vs-card-title">{opp_species} • Lv{opp_level}</div>
+                <div class="vs-card-meta">{opp_type_text} • Total {opp_total}</div>
+                <div class="vs-card-meta"><span style="font-weight:700;">Moves:</span> {opp_moves_txt}</div>
+              </div>
+            </div>
+            <div class="vs-card-grid-title">Their moves vs you</div>
+            {_moves_grid_html(r.get("def_rows"), offense=False)}
+          </div>
+        """
+
+        cL, cR = st.columns(2)
+        with cL:
+            st.markdown(left_html, unsafe_allow_html=True)
+        with cR:
+            st.markdown(right_html, unsafe_allow_html=True)
+
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
 # =============================================================================
 # Evolution Watch page
