@@ -4140,11 +4140,6 @@ def render_evo_watch():
                         else:
                             st.error("Evolution failed (species not found).")
 
-                    st.markdown(
-                        f'<a class="{btn_cls}" href="{href}">{btn_txt}</a>',
-                        unsafe_allow_html=True,
-                    )
-
 def render_saveload():
     st.header("Save / Load")
 
