@@ -2962,10 +2962,8 @@ def render_pokedex():
                             do_rerun()
 
         st.markdown("---")
-
     
 def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
-    """Apply per-card gradient + border/padding to the Streamlit container that holds this marker."""
     primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
     secondary_type = normalize_type(t2)
 
@@ -2980,38 +2978,40 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
         g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
         g1, g2 = g1a, "rgba(0,0,0,0)"
 
-    # Marker must be inside the container we want to style
-    st.markdown(f"<div id='dex_marker_{gid}'></div>", unsafe_allow_html=True)
+    # Marker INSIDE container content
+    st.markdown(f"<span id='dex_marker_{gid}'></span>", unsafe_allow_html=True)
 
-    # IMPORTANT: Do NOT target broad wrappers like stVerticalBlock/stBlock.
-    # Those can span the whole page, causing "everything gets the gradient".
-    selector = ",".join([
-        # Most reliable when using st.container(border=True)
-        f"div[data-testid='stVerticalBlockBorderWrapper']:has(#dex_marker_{gid})",
-
-        # Other wrappers Streamlit sometimes uses depending on version/layout
-        f"div[data-testid='stContainer']:has(#dex_marker_{gid})",
-        f"div[data-testid='stVerticalBlock']:has(#dex_marker_{gid})",
-        f"div.element-container:has(#dex_marker_{gid})",
-    ])
+    wrapper = f"div[data-testid='stVerticalBlockBorderWrapper']:has(#dex_marker_{gid})"
 
     st.markdown(
         f"""
         <style>
-        {selector} {{
-          background: radial-gradient(circle at top left, {g1}, {g2}) !important;
+        {wrapper} {{
+          position: relative !important;
           border-radius: 14px !important;
-          border: 1px solid rgba(148,163,184,.7) !important;
-
-          /* Make it feel like the other gradient cards */
-          padding: 12px 12px 10px 12px !important;
-          margin-bottom: 10px !important;
           overflow: hidden !important;
+          border: 1px solid rgba(148,163,184,.7) !important;
         }}
 
-        /* Kill Streamlit's default border/padding look when border=True */
-        {selector} > div {{
+        /* Gradient bag alt indhold */
+        {wrapper}::before {{
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at top left, {g1}, {g2}) !important;
+          z-index: 0;
+        }}
+
+        /* Sørg for at indhold ligger OVER gradienten */
+        {wrapper} > div {{
+          position: relative !important;
+          z-index: 1 !important;
+          background: transparent !important;
           border: none !important;
+        }}
+
+        /* Nogle Streamlit builds har ekstra lag med baggrund */
+        {wrapper} > div > div {{
           background: transparent !important;
         }}
         </style>
