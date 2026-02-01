@@ -4106,7 +4106,7 @@ def render_evo_watch():
                     evo_force = "1" if (force_all and not bool(r.get("ready"))) else "0"
 
                     guid = str(mon.get("guid", ""))
-                    to_name = str(row.get("to", ""))
+                    to_name = str((locals().get("rr") or locals().get("r") or locals().get("row") or locals().get("rec") or {}).get("to", ""))
                     is_ready = bool(row.get("ready"))
                     force_on = bool(st.session_state.get("force_evo", False))
 
