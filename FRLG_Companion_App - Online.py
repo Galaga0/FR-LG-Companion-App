@@ -126,6 +126,7 @@ def is_base_name_151(name: str) -> bool:
     return not bool(sp.get("evolves_from"))
 
 import streamlit as st
+import streamlit.components.v1 as components
 from typing import List, Dict, Tuple, Optional
 import json, os, urllib.request, ssl, re, csv, uuid, hashlib
 from urllib.parse import urlparse, parse_qs, urlencode, quote
@@ -621,6 +622,62 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
+def _inject_dex_card_gradient_js():
+    # Inject once per session
+    if st.session_state.get("_dex_grad_js"):
+        return
+    st.session_state["_dex_grad_js"] = True
+
+    components.html(
+        """
+        <script>
+        (function () {
+          function findCardRoot(marker) {
+            // Prefer the bordered container used by st.container(border=True)
+            return marker.closest("div[data-testid='stContainer']")
+                || marker.closest("div[data-testid='stVerticalBlockBorderWrapper']")
+                || null;
+          }
+
+          function apply() {
+            document.querySelectorAll("span.dex-grad-marker").forEach(function (m) {
+              var g1 = m.dataset.g1 || "rgba(148,163,184,0.80)";
+              var g2 = m.dataset.g2 || "rgba(75,85,99,0.70)";
+
+              var root = findCardRoot(m);
+              if (!root) return;
+
+              // Apply gradient to the root card element itself (most reliable across Streamlit versions)
+              root.style.borderRadius = "14px";
+              root.style.overflow = "hidden";
+
+              // Keep a consistent border (Streamlit sometimes adds its own)
+              root.style.border = "1px solid rgba(148,163,184,.7)";
+
+              root.style.backgroundColor = "transparent";
+              root.style.backgroundImage =
+                "radial-gradient(circle at top left, " + g1 + ", " + g2 + ")";
+              root.style.backgroundRepeat = "no-repeat";
+              root.style.backgroundSize = "cover";
+
+              // If Streamlit painted a solid background on an inner div, clear it
+              var inner = root.querySelector(":scope > div");
+              if (inner) {
+                inner.style.background = "transparent";
+              }
+            });
+          }
+
+          apply();
+          var obs = new MutationObserver(apply);
+          obs.observe(document.body, { childList: true, subtree: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 # =============================================================================
 # Constants
@@ -2964,6 +3021,8 @@ def render_pokedex():
         st.markdown("---")
     
 def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
+    _inject_dex_card_gradient_js()
+
     primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
     secondary_type = normalize_type(t2)
 
@@ -2978,36 +3037,10 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
         g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
         g1, g2 = g1a, "rgba(0,0,0,0)"
 
-    # Marker INSIDE container content
-    st.markdown(f"<span id='dex_marker_{gid}'></span>", unsafe_allow_html=True)
-
-    wrapper = f"div[data-testid='stVerticalBlockBorderWrapper']:has(#dex_marker_{gid})"
-
+    # Marker must be inside the container you want styled
     st.markdown(
-        f"""
-        <style>
-        {wrapper} {{
-          position: relative !important;
-          border-radius: 14px !important;
-          overflow: hidden !important;
-          border: 1px solid rgba(148,163,184,.7) !important;
-        }}
-
-        /* Put gradient ON the visible inner block (this is what you actually see) */
-        {wrapper} > div {{
-          border-radius: 14px !important;
-          background: radial-gradient(circle at top left, {g1}, {g2}) !important;
-          border: none !important;
-        }}
-
-        /* Nuke Streamlit's nested backgrounds that cover the gradient */
-        {wrapper} > div * {{
-          background: transparent !important;
-        }}
-
-        </style>
-        """,
-        unsafe_allow_html=True
+        f"<span class='dex-grad-marker' data-g1='{g1}' data-g2='{g2}'></span>",
+        unsafe_allow_html=True,
     )
 
 def available_species_entries() -> List[Tuple[str, str]]:
