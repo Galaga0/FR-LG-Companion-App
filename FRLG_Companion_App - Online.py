@@ -3876,11 +3876,11 @@ def render_evo_watch():
         opts = available_evos_for(target_mon.get("species", "")) or []
         rows = [evo_row(target_mon, o) for o in opts]
         opts = available_evos_for(from_name)  # or whatever your current mon/species variable is
-for r in (opts or []):
-    to_name = str(r.get("to", ""))
-    method = r.get("method")
-    level  = r.get("level")
-    item   = r.get("item")
+        for r in (opts or []):
+            to_name = str(r.get("to", ""))
+            method = r.get("method")
+            level  = r.get("level")
+            item   = r.get("item")
     # ... render buttons/labels using these ...
         row = next((r for r in rows if str(r.get("to")) == str(evo_to)), None)
         if not row:
