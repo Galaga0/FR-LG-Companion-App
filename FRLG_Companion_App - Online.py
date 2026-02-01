@@ -620,90 +620,80 @@ st.markdown("""
   gap: 10px;
   align-items: center;
 }
+
+/* --- Pokédex card gradients (NO JS) --- */
+.dex-grad-marker{ display:none; }
+
+/* Style the bordered container that contains our marker */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker){
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(148,163,184,.7);
+}
+
+/* Make inner Streamlit blocks transparent so the wrapper gradient shows */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) > div,
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) div[data-testid="stVerticalBlock"],
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) div{
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Primary-type gradients */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-fire){
+  background: radial-gradient(circle at top left, rgba(248,113,113,0.85), rgba(239,68,68,0.75));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-water){
+  background: radial-gradient(circle at top left, rgba(56,189,248,0.85), rgba(59,130,246,0.75));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-electric){
+  background: radial-gradient(circle at top left, rgba(250,204,21,0.90), rgba(234,179,8,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-grass){
+  background: radial-gradient(circle at top left, rgba(52,211,153,0.85), rgba(34,197,94,0.75));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ice){
+  background: radial-gradient(circle at top left, rgba(125,211,252,0.90), rgba(59,130,246,0.75));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-fighting){
+  background: radial-gradient(circle at top left, rgba(248,113,113,0.90), rgba(220,38,38,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-poison){
+  background: radial-gradient(circle at top left, rgba(192,132,252,0.90), rgba(168,85,247,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ground){
+  background: radial-gradient(circle at top left, rgba(234,179,8,0.90), rgba(202,138,4,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-flying){
+  background: radial-gradient(circle at top left, rgba(129,140,248,0.90), rgba(59,130,246,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-psychic){
+  background: radial-gradient(circle at top left, rgba(244,114,182,0.90), rgba(236,72,153,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-bug){
+  background: radial-gradient(circle at top left, rgba(190,242,100,0.90), rgba(132,204,22,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-rock){
+  background: radial-gradient(circle at top left, rgba(253,186,116,0.90), rgba(234,179,8,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-ghost){
+  background: radial-gradient(circle at top left, rgba(167,139,250,0.90), rgba(129,140,248,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-dragon){
+  background: radial-gradient(circle at top left, rgba(96,165,250,0.90), rgba(37,99,235,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-dark){
+  background: radial-gradient(circle at top left, rgba(31,41,55,0.95), rgba(15,23,42,0.90));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-steel){
+  background: radial-gradient(circle at top left, rgba(148,163,184,0.90), rgba(75,85,99,0.80));
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.dex-normal){
+  background: radial-gradient(circle at top left, rgba(209,213,219,0.85), rgba(156,163,175,0.75));
+}
+
 </style>
 """, unsafe_allow_html=True)
-
-def _inject_dex_card_gradient_js():
-    # Inject once per session
-    if st.session_state.get("_dex_grad_js"):
-        return
-    st.session_state["_dex_grad_js"] = True
-
-    components.html(
-        """
-        <script>
-        (function () {
-          function findWrapper(marker) {
-            // Border wrapper is what st.container(border=True) produces.
-            // This is the one we actually want.
-            return marker.closest("div[data-testid='stVerticalBlockBorderWrapper']")
-                || marker.closest("div[data-testid='stContainer']")
-                || null;
-          }
-
-          function applyOne(marker) {
-            var g1 = marker.dataset.g1 || "rgba(148,163,184,0.80)";
-            var g2 = marker.dataset.g2 || "rgba(75,85,99,0.70)";
-
-            var wrap = findWrapper(marker);
-            if (!wrap) return;
-
-            // Streamlit often paints the "real" background on a child stVerticalBlock.
-            var target =
-              wrap.querySelector(":scope > div[data-testid='stVerticalBlock']") ||
-              wrap.querySelector("div[data-testid='stVerticalBlock']") ||
-              wrap;
-
-            // Round + clip on wrapper (so borders look right)
-            wrap.style.borderRadius = "14px";
-            wrap.style.overflow = "hidden";
-
-            // Keep a consistent border
-            wrap.style.border = "1px solid rgba(148,163,184,.7)";
-
-            // Apply gradient on the element that actually displays the background
-            target.style.backgroundImage =
-              "radial-gradient(circle at top left, " + g1 + ", " + g2 + ")";
-            target.style.backgroundRepeat = "no-repeat";
-            target.style.backgroundSize = "cover";
-            target.style.backgroundColor = "transparent";
-
-            // Streamlit sometimes adds opaque backgrounds on nested blocks.
-            // Make them transparent so the gradient shows through.
-            try {
-              target.querySelectorAll("div").forEach(function (d) {
-                var bg = getComputedStyle(d).backgroundColor;
-                if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
-                  d.style.backgroundColor = "transparent";
-                  d.style.backgroundImage = "none";
-                }
-              });
-            } catch (e) {}
-
-            // Hide marker so it doesn't affect layout
-            marker.style.display = "none";
-          }
-
-          function applyAll() {
-            document.querySelectorAll("span.dex-grad-marker").forEach(applyOne);
-          }
-
-          // Debounced observer so Streamlit rerenders don't cause chaos
-          var t = null;
-          function schedule() {
-            if (t) return;
-            t = setTimeout(function () { t = null; applyAll(); }, 50);
-          }
-
-          applyAll();
-          var obs = new MutationObserver(schedule);
-          obs.observe(document.body, { childList: true, subtree: true });
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
 
 # =============================================================================
 # Constants
@@ -3047,25 +3037,10 @@ def render_pokedex():
         st.markdown("---")
     
 def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
-    _inject_dex_card_gradient_js()
-
     primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
-    secondary_type = normalize_type(t2)
-
-    if secondary_type and secondary_type != primary_type:
-        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
-        _, g2b = TYPE_GRADIENT.get(
-            secondary_type,
-            TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT),
-        )
-        g1, g2 = g1a, g2b
-    else:
-        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
-        g1, g2 = g1a, "rgba(0,0,0,0)"
-
-    # Marker must be inside the container you want styled
+    cls = f"dex-{primary_type.lower()}"
     st.markdown(
-        f"<span class='dex-grad-marker' style='display:none' data-g1='{g1}' data-g2='{g2}'></span>",
+        f"<span class='dex-grad-marker {cls}'></span>",
         unsafe_allow_html=True,
     )
 
