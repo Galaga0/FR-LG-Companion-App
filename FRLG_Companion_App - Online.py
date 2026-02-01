@@ -633,44 +633,70 @@ def _inject_dex_card_gradient_js():
         """
         <script>
         (function () {
-          function findCardRoot(marker) {
-            // Prefer the bordered container used by st.container(border=True)
-            return marker.closest("div[data-testid='stContainer']")
-                || marker.closest("div[data-testid='stVerticalBlockBorderWrapper']")
+          function findWrapper(marker) {
+            // Border wrapper is what st.container(border=True) produces.
+            // This is the one we actually want.
+            return marker.closest("div[data-testid='stVerticalBlockBorderWrapper']")
+                || marker.closest("div[data-testid='stContainer']")
                 || null;
           }
 
-          function apply() {
-            document.querySelectorAll("span.dex-grad-marker").forEach(function (m) {
-              var g1 = m.dataset.g1 || "rgba(148,163,184,0.80)";
-              var g2 = m.dataset.g2 || "rgba(75,85,99,0.70)";
+          function applyOne(marker) {
+            var g1 = marker.dataset.g1 || "rgba(148,163,184,0.80)";
+            var g2 = marker.dataset.g2 || "rgba(75,85,99,0.70)";
 
-              var root = findCardRoot(m);
-              if (!root) return;
+            var wrap = findWrapper(marker);
+            if (!wrap) return;
 
-              // Apply gradient to the root card element itself (most reliable across Streamlit versions)
-              root.style.borderRadius = "14px";
-              root.style.overflow = "hidden";
+            // Streamlit often paints the "real" background on a child stVerticalBlock.
+            var target =
+              wrap.querySelector(":scope > div[data-testid='stVerticalBlock']") ||
+              wrap.querySelector("div[data-testid='stVerticalBlock']") ||
+              wrap;
 
-              // Keep a consistent border (Streamlit sometimes adds its own)
-              root.style.border = "1px solid rgba(148,163,184,.7)";
+            // Round + clip on wrapper (so borders look right)
+            wrap.style.borderRadius = "14px";
+            wrap.style.overflow = "hidden";
 
-              root.style.backgroundColor = "transparent";
-              root.style.backgroundImage =
-                "radial-gradient(circle at top left, " + g1 + ", " + g2 + ")";
-              root.style.backgroundRepeat = "no-repeat";
-              root.style.backgroundSize = "cover";
+            // Keep a consistent border
+            wrap.style.border = "1px solid rgba(148,163,184,.7)";
 
-              // If Streamlit painted a solid background on an inner div, clear it
-              var inner = root.querySelector(":scope > div");
-              if (inner) {
-                inner.style.background = "transparent";
-              }
-            });
+            // Apply gradient on the element that actually displays the background
+            target.style.backgroundImage =
+              "radial-gradient(circle at top left, " + g1 + ", " + g2 + ")";
+            target.style.backgroundRepeat = "no-repeat";
+            target.style.backgroundSize = "cover";
+            target.style.backgroundColor = "transparent";
+
+            // Streamlit sometimes adds opaque backgrounds on nested blocks.
+            // Make them transparent so the gradient shows through.
+            try {
+              target.querySelectorAll("div").forEach(function (d) {
+                var bg = getComputedStyle(d).backgroundColor;
+                if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
+                  d.style.backgroundColor = "transparent";
+                  d.style.backgroundImage = "none";
+                }
+              });
+            } catch (e) {}
+
+            // Hide marker so it doesn't affect layout
+            marker.style.display = "none";
           }
 
-          apply();
-          var obs = new MutationObserver(apply);
+          function applyAll() {
+            document.querySelectorAll("span.dex-grad-marker").forEach(applyOne);
+          }
+
+          // Debounced observer so Streamlit rerenders don't cause chaos
+          var t = null;
+          function schedule() {
+            if (t) return;
+            t = setTimeout(function () { t = null; applyAll(); }, 50);
+          }
+
+          applyAll();
+          var obs = new MutationObserver(schedule);
           obs.observe(document.body, { childList: true, subtree: true });
         })();
         </script>
@@ -3039,7 +3065,7 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
 
     # Marker must be inside the container you want styled
     st.markdown(
-        f"<span class='dex-grad-marker' data-g1='{g1}' data-g2='{g2}'></span>",
+        f"<span class='dex-grad-marker' style='display:none' data-g1='{g1}' data-g2='{g2}'></span>",
         unsafe_allow_html=True,
     )
 
