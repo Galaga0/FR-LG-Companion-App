@@ -469,29 +469,23 @@ st.markdown("""
 
 /* Paint the two halves behind content */
 /* TOP half = current Pokémon */
-.evo-row-card::before{
-  content: "";
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 50%;
-  z-index: 0;
-  pointer-events: none;
+.evo-row-card{
+  --evo-top1: rgba(148,163,184,0.22);
+  --evo-top2: rgba(15,23,42,0.0);
+  --evo-bot1: rgba(148,163,184,0.22);
+  --evo-bot2: rgba(15,23,42,0.0);
 
-  background: radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2));
-  background-repeat: no-repeat;
-}
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148,163,184,.7);
+  margin: 8px 0;
+  overflow: hidden;
+  position: relative;
 
-/* BOTTOM half = evolved Pokémon */
-.evo-row-card::after{
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 50%;
-  z-index: 0;
-  pointer-events: none;
-
-  background: radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
-  background-repeat: no-repeat;
+  /* TOP half + BOTTOM half, always */
+  background:
+    radial-gradient(circle at top left,    var(--evo-top1), var(--evo-top2)) top left / 100% 50% no-repeat,
+    radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2)) bottom left / 100% 50% no-repeat;
 }
 
 /* Keep your grid above the gradient layer */
