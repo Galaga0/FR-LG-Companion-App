@@ -3855,55 +3855,48 @@ def render_evo_watch():
     force_all = c2.checkbox("Force evolve (ignore requirements)", key="force_evo")
 
     rebuild_moves_default = False  # keep current behavior
-
-    # ---- Handle evolve clicks via query params (so HTML rows can trigger actions)
-    try:
-        q = st.experimental_get_query_params()
-        evo_guid = q.get("evo_guid", [None])[0]
-        evo_to = q.get("evo_to", [None])[0]
-        evo_force = q.get("evo_force", [None])[0]
-
-        if evo_guid and evo_to:
-            do_force = (str(evo_force) == "1")
-
-            # Find the mon by guid
-            target_mon = None
-            for _m in STATE.get("roster", []):
-                if str(_m.get("guid")) == str(evo_guid):
-                    target_mon = _m
-                    break
-
-            if target_mon:
-                # Recompute evo row data so we know requirements
-                opts = available_evos_for(target_mon.get("species", "")) or []
-                rows = [evo_row(target_mon, o) for o in opts]
-                row = next((rr for rr in rows if str(rr.get("to")) == str(evo_to)), None)
-
-                if row:
-                    ready_now = bool(row.get("ready")) or bool(do_force)
-
-                    if ready_now:
-                        # Consume stone only if actually ready and not forcing
-                        if row.get("method") == "item" and row.get("item") in items and row.get("ready") and not do_force:
-                            if int(STATE["stones"].get(row["item"], 0)) <= 0:
-                                st.error(f"No {row['item']} left.")
-                            else:
-                                STATE["stones"][row["item"]] -= 1
-                                save_state(STATE)
-
-                        if evolve_mon_record(target_mon, evo_to, rebuild_moves=rebuild_moves_default):
-                            save_state(STATE)
-                            st.success(f"Evolved into {evo_to}.")
-                        else:
-                            st.error("Evolution failed (species not in database).")
-                    else:
-                        st.error("Not ready to evolve.")
-
-            # Clear params so refresh doesn’t repeat the evolve
-            st.experimental_set_query_params()
-            do_rerun()
+    
     except Exception:
         pass
+
+    def _try_evolve(mon_guid: str, evo_to: str, do_force: bool):
+        # Find mon
+        target_mon = None
+        for _m in STATE.get("roster", []):
+            if str(_m.get("guid")) == str(mon_guid):
+                target_mon = _m
+                break
+        if not target_mon:
+            st.error("Could not find that Pokémon in your roster.")
+            return
+
+        # Build evo options and find the matching row
+        opts = available_evos_for(target_mon.get("species", "")) or []
+        rows = [evo_row(target_mon, o) for o in opts]
+        row = next((rr for rr in rows if str(rr.get("to")) == str(evo_to)), None)
+        if not row:
+            st.error("That evolution option no longer exists.")
+            return
+
+        ready_now = bool(row.get("ready")) or bool(do_force)
+        if not ready_now:
+            st.error("Not ready to evolve.")
+            return
+
+        # Consume stone ONLY if: item evolution, ready normally, and not forced
+        if row.get("method") == "item" and row.get("item") in items and row.get("ready") and not do_force:
+            if int(STATE["stones"].get(row["item"], 0)) <= 0:
+                st.error(f"No {row['item']} left.")
+                return
+            STATE["stones"][row["item"]] -= 1
+
+        # Evolve (default behavior: keep moves unless you later change it)
+        if evolve_mon_record(target_mon, evo_to, rebuild_moves=False):
+            save_state(STATE)
+            st.success(f"Evolved into {evo_to}.")
+            do_rerun()
+        else:
+            st.error("Evolution failed (species not in database).")
 
     # ---- Helpers
     def evo_row(mon: dict, opt: dict) -> dict:
