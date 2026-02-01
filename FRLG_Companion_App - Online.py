@@ -4107,14 +4107,17 @@ def render_evo_watch():
 
                     ready_now = bool(r.get("ready")) or bool(force_all)
 
-                    # Build link-based action so the whole row can be one HTML block
                     evo_guid = str(mon.get("guid"))
                     evo_to = str(tgt_name)
+
+                    # robustly get the current row dict, regardless of variable name
+                    row = locals().get("row") or locals().get("r") or locals().get("rec") or {}
+                    r = row  # keep existing logic working if you reference r
+
                     evo_force = "1" if (force_all and not bool(r.get("ready"))) else "0"
 
                     guid = str(mon.get("guid", ""))
-                    to_name = str(evo_to or "").strip()
-                    r") or locals().get("r") or locals().get("row") or locals().get("rec") or {}).get("to", ""))
+                    to_name = str((evo_to or row.get("to", "")) or "").strip()
                     is_ready = bool(row.get("ready"))
                     force_on = bool(st.session_state.get("force_evo", False))
 
