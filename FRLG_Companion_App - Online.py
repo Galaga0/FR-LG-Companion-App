@@ -3877,10 +3877,10 @@ def render_evo_watch():
         rows = [evo_row(target_mon, o) for o in opts]
         opts = available_evos_for(from_name)  # or whatever your current mon/species variable is
 for rr in (opts or []):
-    to_name = str(rr.get("to", ""))
-    method  = rr.get("method")
-    level   = rr.get("level")
-    item    = rr.get("item")
+    to_name = str(r.get("to", ""))
+    method = r.get("method")
+    level  = r.get("level")
+    item   = r.get("item")
     # ... render buttons/labels using these ...
         row = next((rr for rr in rows if str(rr.get("to")) == str(evo_to)), None)
         if not row:
