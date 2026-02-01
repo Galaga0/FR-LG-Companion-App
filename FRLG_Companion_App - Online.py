@@ -3023,15 +3023,20 @@ def render_battle():
                         <span class="opp-card-moves-label">Moves:</span> {moves_txt}
                       </div>
                     </div>
-                    <div class="opp-card-select">
-                      <a class="opp-card-select-btn" href="?enc={selected_enc_idx}&mon={idx}">Select</a>
-                    </div>
                   </div>
                 """
 
                 with cols[col_pos]:
                     # Full card including in-card Select button (HTML link)
                     st.markdown(card_html, unsafe_allow_html=True)
+
+                    # In-app select (no URL navigation / no new tab / no new session)
+                    _sp, _btn = st.columns([4, 1])
+                    with _btn:
+                        if st.button("Select", key=f"opp_pick_{selected_enc_idx}_{idx}", type="primary"):
+                            STATE["last_battle_pick"] = [selected_enc_idx, idx]
+                            save_state(STATE)
+                            do_rerun()
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
