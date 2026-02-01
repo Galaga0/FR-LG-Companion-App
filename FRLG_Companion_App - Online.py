@@ -317,54 +317,6 @@ st.markdown("""
   --opp-bg1: rgba(148,163,184,0.22);
   --opp-bg2: rgba(15,23,42,0.0);
 
-/* VS cards (Battle: Your team vs Opponent) */
-.vs-card{
-  --opp-bg1: rgba(148,163,184,0.22);
-  --opp-bg2: rgba(15,23,42,0.0);
-
-  border-radius: 14px;
-  padding: 12px 12px 10px 12px;
-  border: 1px solid rgba(148,163,184,.7);
-  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2));
-}
-
-.vs-card-header{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.vs-card-sprite img{
-  image-rendering: pixelated;
-}
-
-.vs-card-title{
-  font-weight: 800;
-  font-size: 15px;
-  line-height: 1.15;
-}
-
-.vs-card-meta{
-  opacity: 0.92;
-  font-size: 12px;
-  margin-top: 2px;
-}
-
-.vs-card-scoreline{
-  font-size: 12px;
-  margin-top: 4px;
-  opacity: 0.95;
-}
-
-.vs-card-grid-title{
-  font-weight: 700;
-  font-size: 12px;
-  margin-top: 8px;
-  margin-bottom: 4px;
-  opacity: 0.95;
-}
-
   border-radius: 14px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
@@ -449,6 +401,55 @@ st.markdown("""
 
 .opp-card-moves-label {
   font-weight: 600;
+}
+
+/* VS cards (Battle: Your team vs Opponent) */
+.vs-card {
+  --opp-bg1: rgba(148,163,184,0.22);
+  --opp-bg2: rgba(15,23,42,0.0);
+
+  border-radius: 14px;
+  padding: 12px 12px 10px 12px;
+  border: 1px solid rgba(148,163,184,.7);
+  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2));
+  margin-bottom: 10px;
+}
+
+.vs-card-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.vs-card-sprite img {
+  image-rendering: pixelated;
+}
+
+.vs-card-title {
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.vs-card-meta {
+  opacity: 0.92;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.vs-card-scoreline {
+  font-size: 12px;
+  margin-top: 4px;
+  opacity: 0.95;
+}
+
+.vs-card-grid-title {
+  font-weight: 700;
+  font-size: 12px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  opacity: 0.95;
 }
 </style>
 """, unsafe_allow_html=True)
