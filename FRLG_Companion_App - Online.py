@@ -621,47 +621,45 @@ st.markdown("""
   align-items: center;
 }
 
-/* --- Pokédex card gradients (robust across Streamlit DOM variants) --- */
+/* --- Pokédex card gradients (Streamlit-proof) --- */
 .dex-grad-marker { display:none; }
 
-/* Support both common wrappers used by Streamlit for bordered containers */
+/* 1) Mark the bordered wrapper */
 div[data-testid="stVerticalBlockBorderWrapper"].dex-card,
 div[data-testid="stContainer"].dex-card{
-  position: relative;
-  overflow: hidden;
-  border-radius: 14px;
-  border: 1px solid rgba(148,163,184,.7);
-  background: transparent !important; /* gradient is painted by ::before */
+  position: relative !important;
+  overflow: hidden !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(148,163,184,.7) !important;
 }
 
-/* Gradient layer that cannot be “covered” by child backgrounds */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card::before,
-div[data-testid="stContainer"].dex-card::before{
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-
-  /* fallback values if vars not set */
+/* 2) THE IMPORTANT PART:
+   Streamlit often paints the visible background on an inner child div.
+   So we apply the gradient to BOTH the wrapper and its first child. */
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card,
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div,
+div[data-testid="stContainer"].dex-card,
+div[data-testid="stContainer"].dex-card > div{
   background: radial-gradient(
     circle at top left,
     var(--opp-bg1, rgba(148,163,184,0.22)),
     var(--opp-bg2, rgba(15,23,42,0.0))
-  );
+  ) !important;
 }
 
-/* Put actual content above the gradient */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card > *,
-div[data-testid="stContainer"].dex-card > *{
-  position: relative;
-  z-index: 1;
+/* 3) Stop inner layout blocks from repainting opaque panels */
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div,
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div > div,
+div[data-testid="stContainer"].dex-card > div,
+div[data-testid="stContainer"].dex-card > div > div{
+  background-color: transparent !important;
 }
 
-/* Only force transparency where it matters: background-color.
-   Do NOT nuke background-image everywhere (it breaks widgets/icons). */
+/* 4) Keep content above any pseudo layers (and just generally sane stacking) */
 div[data-testid="stVerticalBlockBorderWrapper"].dex-card * ,
 div[data-testid="stContainer"].dex-card *{
-  background-color: transparent !important;
+  position: relative;
+  z-index: 1;
 }
 
 </style>
@@ -675,18 +673,30 @@ def _inject_dex_card_class_hoister():
           function hoist() {
             const doc = window.parent && window.parent.document ? window.parent.document : document;
             const markers = doc.querySelectorAll('.dex-grad-marker');
+
             markers.forEach(m => {
               const wrap = m.closest('div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stContainer"]');
               if (!wrap) return;
 
               wrap.classList.add('dex-card');
 
+              // inner panel (Streamlit often paints background here)
+              const inner = wrap.querySelector(':scope > div');
+              if (inner) inner.classList.add('dex-card');
+
               const bg1 = m.style.getPropertyValue('--opp-bg1');
               const bg2 = m.style.getPropertyValue('--opp-bg2');
-              if (bg1) wrap.style.setProperty('--opp-bg1', bg1.trim());
-              if (bg2) wrap.style.setProperty('--opp-bg2', bg2.trim());
 
-              // verification stamps (inspectable)
+              if (bg1) {
+                wrap.style.setProperty('--opp-bg1', bg1.trim());
+                if (inner) inner.style.setProperty('--opp-bg1', bg1.trim());
+              }
+              if (bg2) {
+                wrap.style.setProperty('--opp-bg2', bg2.trim());
+                if (inner) inner.style.setProperty('--opp-bg2', bg2.trim());
+              }
+
+              // debug stamps
               wrap.dataset.dexcard = "1";
               wrap.dataset.bg1 = (bg1 || "").trim();
               wrap.dataset.bg2 = (bg2 || "").trim();
