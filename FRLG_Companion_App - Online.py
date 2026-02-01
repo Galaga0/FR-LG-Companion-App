@@ -2993,27 +2993,18 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
           border: 1px solid rgba(148,163,184,.7) !important;
         }}
 
-        /* Gradient bag alt indhold */
-        {wrapper}::before {{
-          content: "";
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(circle at top left, {g1}, {g2}) !important;
-          z-index: 0;
-        }}
-
-        /* Sørg for at indhold ligger OVER gradienten */
+        /* Put gradient ON the visible inner block (this is what you actually see) */
         {wrapper} > div {{
-          position: relative !important;
-          z-index: 1 !important;
-          background: transparent !important;
+          border-radius: 14px !important;
+          background: radial-gradient(circle at top left, {g1}, {g2}) !important;
           border: none !important;
         }}
 
-        /* Nogle Streamlit builds har ekstra lag med baggrund */
-        {wrapper} > div > div {{
+        /* Nuke Streamlit's nested backgrounds that cover the gradient */
+        {wrapper} > div * {{
           background: transparent !important;
         }}
+
         </style>
         """,
         unsafe_allow_html=True
