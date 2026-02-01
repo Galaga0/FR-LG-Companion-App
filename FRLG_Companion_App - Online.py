@@ -3875,7 +3875,14 @@ def render_evo_watch():
         # Build evo options and find the matching row
         opts = available_evos_for(target_mon.get("species", "")) or []
         rows = [evo_row(target_mon, o) for o in opts]
-        row = next((rr for rr in rows if str(r.get("to")) == str(evo_to)), None)
+        opts = available_evos_for(from_name)  # or whatever your current mon/species variable is
+for rr in (opts or []):
+    to_name = str(rr.get("to", ""))
+    method  = rr.get("method")
+    level   = rr.get("level")
+    item    = rr.get("item")
+    # ... render buttons/labels using these ...
+        row = next((rr for rr in rows if str(rr.get("to")) == str(evo_to)), None)
         if not row:
             st.error("That evolution option no longer exists.")
             return
