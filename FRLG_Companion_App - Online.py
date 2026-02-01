@@ -468,19 +468,29 @@ st.markdown("""
 }
 
 /* Paint the two halves behind content */
+/* TOP half = current Pokémon */
 .evo-row-card::before{
   content: "";
   position: absolute;
-  inset: 0;
+  left: 0; right: 0; top: 0;
+  height: 50%;
   z-index: 0;
   pointer-events: none;
 
-  background-image:
-    radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2)),
-    radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
+  background: radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2));
+  background-repeat: no-repeat;
+}
 
-  background-size: 100% 50%, 100% 50%;
-  background-position: top left, bottom left;
+/* BOTTOM half = evolved Pokémon */
+.evo-row-card::after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 50%;
+  z-index: 0;
+  pointer-events: none;
+
+  background: radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
   background-repeat: no-repeat;
 }
 
