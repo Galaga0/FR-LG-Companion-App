@@ -621,34 +621,47 @@ st.markdown("""
   align-items: center;
 }
 
-/* --- Pokédex card gradients (Battle/Evo style: per-card CSS vars) --- */
+/* --- Pokédex card gradients (robust across Streamlit DOM variants) --- */
 .dex-grad-marker { display:none; }
 
-/* The bordered Streamlit container wrapper */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card{
-  border-radius: 14px;
+/* Support both common wrappers used by Streamlit for bordered containers */
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card,
+div[data-testid="stContainer"].dex-card{
+  position: relative;
   overflow: hidden;
-  border: 1px solid rgba(148,163,184,.7);
-
-  /* default fallback if vars missing */
-  --opp-bg1: rgba(148,163,184,0.22);
-  --opp-bg2: rgba(15,23,42,0.0);
-
-  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
-}
-
-/* Some Streamlit versions paint background on the first child, so paint it too */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div{
   border-radius: 14px;
-  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
+  border: 1px solid rgba(148,163,184,.7);
+  background: transparent !important; /* gradient is painted by ::before */
 }
 
-/* Make all inner blocks transparent so the gradient actually shows */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div > div,
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div > div *{
-  background: transparent !important;
+/* Gradient layer that cannot be “covered” by child backgrounds */
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card::before,
+div[data-testid="stContainer"].dex-card::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+
+  /* fallback values if vars not set */
+  background: radial-gradient(
+    circle at top left,
+    var(--opp-bg1, rgba(148,163,184,0.22)),
+    var(--opp-bg2, rgba(15,23,42,0.0))
+  );
+}
+
+/* Put actual content above the gradient */
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card > *,
+div[data-testid="stContainer"].dex-card > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* Only force transparency where it matters: background-color.
+   Do NOT nuke background-image everywhere (it breaks widgets/icons). */
+div[data-testid="stVerticalBlockBorderWrapper"].dex-card * ,
+div[data-testid="stContainer"].dex-card *{
   background-color: transparent !important;
-  background-image: none !important;
 }
 
 </style>
@@ -663,16 +676,20 @@ def _inject_dex_card_class_hoister():
             const doc = window.parent && window.parent.document ? window.parent.document : document;
             const markers = doc.querySelectorAll('.dex-grad-marker');
             markers.forEach(m => {
-              const wrap = m.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
+              const wrap = m.closest('div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stContainer"]');
               if (!wrap) return;
 
               wrap.classList.add('dex-card');
 
-              // Copy per-card CSS vars (Battle/Evo style)
               const bg1 = m.style.getPropertyValue('--opp-bg1');
               const bg2 = m.style.getPropertyValue('--opp-bg2');
               if (bg1) wrap.style.setProperty('--opp-bg1', bg1.trim());
               if (bg2) wrap.style.setProperty('--opp-bg2', bg2.trim());
+
+              // verification stamps (inspectable)
+              wrap.dataset.dexcard = "1";
+              wrap.dataset.bg1 = (bg1 || "").trim();
+              wrap.dataset.bg2 = (bg2 || "").trim();
             });
           }
 
