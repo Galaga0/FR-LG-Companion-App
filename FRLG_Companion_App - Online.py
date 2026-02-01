@@ -662,6 +662,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
 .dex-card{
   position: relative !important;
   overflow: hidden !important;
@@ -701,6 +703,8 @@ st.markdown("""
   background-color: transparent !important;
   background: transparent !important;
 }
+</style>
+""", unsafe_allow_html=True)
 
 def _inject_dex_card_class_hoister():
     components.html(
