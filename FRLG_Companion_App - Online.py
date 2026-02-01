@@ -2983,13 +2983,11 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
     # Marker must be inside the container we want to style
     st.markdown(f"<div id='dex_marker_{gid}'></div>", unsafe_allow_html=True)
 
-    # Streamlit keeps changing wrappers. Target the common ones.
+    # IMPORTANT: Do NOT target broad wrappers like stVerticalBlock/stBlock.
+    # Those can span the whole page, causing "everything gets the gradient".
     selector = ",".join([
         f"div[data-testid='stContainer']:has(#dex_marker_{gid})",
-        f"div[data-testid='stVerticalBlock']:has(#dex_marker_{gid})",
         f"div[data-testid='stVerticalBlockBorderWrapper']:has(#dex_marker_{gid})",
-        f"div[data-testid='stBlock']:has(#dex_marker_{gid})",
-        f"div[data-testid='stElementContainer']:has(#dex_marker_{gid})",
     ])
 
     st.markdown(
