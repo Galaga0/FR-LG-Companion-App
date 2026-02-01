@@ -4110,11 +4110,10 @@ def render_evo_watch():
                     evo_guid = str(mon.get("guid"))
                     evo_to = str(tgt_name)
 
-                    # robustly get the current row dict, regardless of variable name
-                    row = locals().get("row") or locals().get("r") or locals().get("rec") or {}
-                    r = row  # keep existing logic working if you reference r
+                    # in this loop, r IS the current evo option row
+                    row = r
 
-                    evo_force = "1" if (force_all and not bool(r.get("ready"))) else "0"
+                    evo_force = "1" if (force_all and not bool(row.get("ready"))) else "0"
 
                     guid = str(mon.get("guid", ""))
                     to_name = str((evo_to or row.get("to", "")) or "").strip()
@@ -4128,9 +4127,8 @@ def render_evo_watch():
                     })
 
                     gid = mon.get("guid") or "noguid"
-                    to_name = evo_opt.get("to") or ""
                     to_sk = species_key(to_name) or ps_id(to_name) or "unk"
-                    opt_i = int(j)  # j = index in the evo options loop (0,1,2...)
+                    opt_i = int(idx)  # idx is the loop index here
 
                     btn_key = f"evolve__{gid}__{to_sk}__{opt_i}"
 
