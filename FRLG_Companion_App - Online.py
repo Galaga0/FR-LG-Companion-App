@@ -451,6 +451,27 @@ st.markdown("""
   margin-bottom: 4px;
   opacity: 0.95;
 }
+
+/* Evolution page: per-evolution row cards with TWO gradients
+   Top half = current mon types, bottom half = target mon types */
+.evo-row-card{
+  --evo-top1: rgba(148,163,184,0.22);
+  --evo-top2: rgba(15,23,42,0.0);
+  --evo-bot1: rgba(148,163,184,0.22);
+  --evo-bot2: rgba(15,23,42,0.0);
+
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148,163,184,.7);
+  margin: 8px 0;
+
+  background-image:
+    radial-gradient(circle at top left, var(--evo-top1), var(--evo-top2)),
+    radial-gradient(circle at bottom left, var(--evo-bot1), var(--evo-bot2));
+  background-size: 100% 50%, 100% 50%;
+  background-position: top, bottom;
+  background-repeat: no-repeat;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -510,6 +531,31 @@ def _gradient_style_for_types(t1: Optional[str], t2: Optional[str]) -> str:
         g2 = "rgba(0,0,0,0)"
 
     return f"--opp-bg1:{g1};--opp-bg2:{g2};"
+
+def _evo_gradient_vars(prefix: str, t1: Optional[str], t2: Optional[str]) -> str:
+    """
+    Build CSS vars for evo row halves.
+    prefix: "evo-top" or "evo-bot"
+    sets: --evo-top1/2 or --evo-bot1/2
+    """
+    primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
+    secondary_type = normalize_type(t2)
+
+    if secondary_type and secondary_type != primary_type:
+        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+        _, g2b = TYPE_GRADIENT.get(
+            secondary_type,
+            TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT),
+        )
+        g1 = g1a
+        g2 = g2b
+    else:
+        g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
+        g1 = g1a
+        g2 = "rgba(0,0,0,0)"
+
+    # prefix is expected to be "evo-top" or "evo-bot"
+    return f"--{prefix}1:{g1};--{prefix}2:{g2};"
 
 # Global sprite size (px) so every sprite uses the same visual size
 SPRITE_SIZE = 96
@@ -3697,11 +3743,34 @@ def render_evo_watch():
                 h6.markdown("**Action**")
 
                 for idx, r in enumerate(use_rows):
+                    # Current Pokémon types (top half)
+                    cur_types = purge_fairy_types_pair(mon.get("types") or [])
+                    cur_t1, cur_t2 = cur_types[0], cur_types[1]
+
+                    # Target Pokémon types (bottom half) – ensure it exists
+                    tgt_name = r.get("to", "?")
+                    tgt_rec = STATE.get("species_db", {}).get(species_key(tgt_name))
+                    if not tgt_rec:
+                        ensure_species_in_db(tgt_name)
+                        tgt_rec = STATE.get("species_db", {}).get(species_key(tgt_name))
+
+                    tgt_types = purge_fairy_types_pair((tgt_rec or {}).get("types") or [])
+                    tgt_t1, tgt_t2 = tgt_types[0], tgt_types[1]
+
+                    # Build 2-half gradient style
+                    top_vars = _evo_gradient_vars("evo-top", cur_t1, cur_t2)
+                    bot_vars = _evo_gradient_vars("evo-bot", tgt_t1, tgt_t2)
+                    row_style = f"{top_vars}{bot_vars}"
+
+                    # Open wrapper div so the Streamlit columns render inside it
+                    st.markdown(f"<div class='evo-row-card' style='{row_style}'>", unsafe_allow_html=True)
+
                     c1, c2, c3, c4, c5, c6 = st.columns([3, 2, 2, 3, 2, 2])
-                    target_html = f"{sprite_img_html(r['to'])}{r['to']}"
+
+                    target_html = f"{sprite_img_html(tgt_name)}{tgt_name}"
                     c1.markdown(target_html, unsafe_allow_html=True)
+
                     method_pretty = {"level": "Level", "Use item": "Use Item", "item": "Use Item", "trade": "Trade", "manual": "Manual"}[r["method"]]
-                    # ensure consistent label if earlier code sets method to 'item'
                     if r["method"] == "item":
                         method_pretty = "Use Item"
                     c2.markdown(f"<span class='badge {r['badge']}'>{method_pretty}</span>", unsafe_allow_html=True)
@@ -3713,7 +3782,7 @@ def render_evo_watch():
                     c5.write(f"{r['from_total']} → {r['to_total']}")
 
                     ready_now = r["ready"] or force_all
-                    btn_label = f"Evolve → {r['to']}" + (" [force]" if force_all and not r["ready"] else "")
+                    btn_label = f"Evolve → {tgt_name}" + (" [force]" if force_all and not r["ready"] else "")
                     if ready_now:
                         if c6.button(btn_label, key=f"evo_watch_btn_{mon['guid']}_{idx}"):
                             # Consume stone only when requirement is met and not forcing
@@ -3724,14 +3793,17 @@ def render_evo_watch():
                                 else:
                                     STATE['stones'][r["item"]] -= 1
                                     save_state(STATE)
-                            if evolve_mon_record(mon, r["to"], rebuild_moves=rebuild_moves_default):
+                            if evolve_mon_record(mon, tgt_name, rebuild_moves=rebuild_moves_default):
                                 save_state(STATE)
-                                st.success(f"Evolved into {r['to']}.")
+                                st.success(f"Evolved into {tgt_name}.")
                                 do_rerun()
                             else:
                                 st.error("Evolution failed (species not in database).")
                     else:
                         c6.caption("—")
+
+                    # Close wrapper div
+                    st.markdown("</div>", unsafe_allow_html=True)
 
 def render_saveload():
     st.header("Save / Load")
