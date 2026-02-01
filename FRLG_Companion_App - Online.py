@@ -621,81 +621,36 @@ st.markdown("""
   align-items: center;
 }
 
-/* --- Pokédex card gradients (Safari-safe: no :has) --- */
+/* --- Pokédex card gradients (Battle/Evo style: per-card CSS vars) --- */
 .dex-grad-marker { display:none; }
 
-/* Generic card wrapper once JS adds .dex-card + dex-<type> */
+/* The bordered Streamlit container wrapper */
 div[data-testid="stVerticalBlockBorderWrapper"].dex-card{
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(148,163,184,.7);
+
+  /* default fallback if vars missing */
+  --opp-bg1: rgba(148,163,184,0.22);
+  --opp-bg2: rgba(15,23,42,0.0);
+
+  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
 }
 
-/* Paint on the visible inner block */
+/* Some Streamlit versions paint background on the first child, so paint it too */
 div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div{
   border-radius: 14px;
-  background: radial-gradient(circle at top left, rgba(148,163,184,0.22), rgba(15,23,42,0.0)) !important;
+  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
 }
 
-/* Make inner Streamlit stuff transparent so gradient shows */
+/* Make all inner blocks transparent so the gradient actually shows */
 div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div > div,
 div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div > div *{
+  background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
 }
 
-/* Type gradients */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-fire > div{
-  background: radial-gradient(circle at top left, rgba(248,113,113,0.85), rgba(239,68,68,0.75)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-water > div{
-  background: radial-gradient(circle at top left, rgba(56,189,248,0.85), rgba(59,130,246,0.75)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-electric > div{
-  background: radial-gradient(circle at top left, rgba(250,204,21,0.90), rgba(234,179,8,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-grass > div{
-  background: radial-gradient(circle at top left, rgba(52,211,153,0.85), rgba(34,197,94,0.75)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-ice > div{
-  background: radial-gradient(circle at top left, rgba(125,211,252,0.90), rgba(59,130,246,0.75)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-fighting > div{
-  background: radial-gradient(circle at top left, rgba(248,113,113,0.90), rgba(220,38,38,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-poison > div{
-  background: radial-gradient(circle at top left, rgba(192,132,252,0.90), rgba(168,85,247,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-ground > div{
-  background: radial-gradient(circle at top left, rgba(234,179,8,0.90), rgba(202,138,4,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-flying > div{
-  background: radial-gradient(circle at top left, rgba(129,140,248,0.90), rgba(59,130,246,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-psychic > div{
-  background: radial-gradient(circle at top left, rgba(244,114,182,0.90), rgba(236,72,153,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-bug > div{
-  background: radial-gradient(circle at top left, rgba(190,242,100,0.90), rgba(132,204,22,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-rock > div{
-  background: radial-gradient(circle at top left, rgba(253,186,116,0.90), rgba(234,179,8,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-ghost > div{
-  background: radial-gradient(circle at top left, rgba(167,139,250,0.90), rgba(129,140,248,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-dragon > div{
-  background: radial-gradient(circle at top left, rgba(96,165,250,0.90), rgba(37,99,235,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-dark > div{
-  background: radial-gradient(circle at top left, rgba(31,41,55,0.95), rgba(15,23,42,0.90)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-steel > div{
-  background: radial-gradient(circle at top left, rgba(148,163,184,0.90), rgba(75,85,99,0.80)) !important;
-}
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-normal > div{
-  background: radial-gradient(circle at top left, rgba(209,213,219,0.85), rgba(156,163,175,0.75)) !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -711,13 +666,13 @@ def _inject_dex_card_class_hoister():
               const wrap = m.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
               if (!wrap) return;
 
-              // Always mark as a dex-card
               wrap.classList.add('dex-card');
 
-              // Copy any dex-* type class from the marker to the wrapper
-              m.classList.forEach(cls => {
-                if (cls.startsWith('dex-')) wrap.classList.add(cls);
-              });
+              // Copy per-card CSS vars (Battle/Evo style)
+              const bg1 = m.style.getPropertyValue('--opp-bg1');
+              const bg2 = m.style.getPropertyValue('--opp-bg2');
+              if (bg1) wrap.style.setProperty('--opp-bg1', bg1.trim());
+              if (bg2) wrap.style.setProperty('--opp-bg2', bg2.trim());
             });
           }
 
@@ -3075,10 +3030,10 @@ def render_pokedex():
         st.markdown("---")
     
 def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
-    primary_type = normalize_type(t1) or normalize_type(t2) or "Normal"
-    cls = f"dex-{primary_type.lower()}"
+    # EXACT same variable style model as Battle cards
+    style = _gradient_style_for_types(t1, t2)  # returns "--opp-bg1:...;--opp-bg2:...;"
     st.markdown(
-        f"<span class='dex-grad-marker {cls}'></span>",
+        f"<span class='dex-grad-marker' style='{style}'></span>",
         unsafe_allow_html=True,
     )
 
