@@ -621,25 +621,16 @@ st.markdown("""
   align-items: center;
 }
 
-/* --- Pokédex card gradients (Streamlit-proof) --- */
+/* --- Pokédex card gradients (actually Streamlit-proof) --- */
 .dex-grad-marker { display:none; }
 
-/* 1) Mark the bordered wrapper */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card,
-div[data-testid="stContainer"].dex-card{
+/* Style by class, not Streamlit's ever-changing testids */
+.dex-card{
   position: relative !important;
   overflow: hidden !important;
   border-radius: 14px !important;
   border: 1px solid rgba(148,163,184,.7) !important;
-}
 
-/* 2) THE IMPORTANT PART:
-   Streamlit often paints the visible background on an inner child div.
-   So we apply the gradient to BOTH the wrapper and its first child. */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card,
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div,
-div[data-testid="stContainer"].dex-card,
-div[data-testid="stContainer"].dex-card > div{
   background: radial-gradient(
     circle at top left,
     var(--opp-bg1, rgba(148,163,184,0.22)),
@@ -647,17 +638,23 @@ div[data-testid="stContainer"].dex-card > div{
   ) !important;
 }
 
-/* 3) Stop inner layout blocks from repainting opaque panels */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div,
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card > div > div,
-div[data-testid="stContainer"].dex-card > div,
-div[data-testid="stContainer"].dex-card > div > div{
+/* Streamlit often paints background on inner panels: force them to inherit */
+.dex-card > div,
+.dex-card > div > div{
+  background: inherit !important;
+}
+
+/* Prevent inner layout blocks from repainting opaque panels */
+.dex-card [data-testid="stVerticalBlock"],
+.dex-card [data-testid="stHorizontalBlock"],
+.dex-card [data-testid="stMarkdownContainer"],
+.dex-card [data-testid="stCaptionContainer"],
+.dex-card [data-testid="stText"]{
   background-color: transparent !important;
 }
 
-/* 4) Keep content above any pseudo layers (and just generally sane stacking) */
-div[data-testid="stVerticalBlockBorderWrapper"].dex-card * ,
-div[data-testid="stContainer"].dex-card *{
+/* Keep content above background */
+.dex-card *{
   position: relative;
   z-index: 1;
 }
@@ -670,33 +667,42 @@ def _inject_dex_card_class_hoister():
         """
         <script>
         (function() {
+          function findWrap(el){
+            return el.closest(
+              'div[data-testid="stVerticalBlockBorderWrapper"],' +
+              'div[data-testid="stContainer"],' +
+              'div[data-testid="stElementContainer"],' +
+              'div[data-testid="stBlock"]'
+            );
+          }
+
           function hoist() {
-            const doc = window.parent && window.parent.document ? window.parent.document : document;
+            const doc = (window.parent && window.parent.document) ? window.parent.document : document;
             const markers = doc.querySelectorAll('.dex-grad-marker');
 
             markers.forEach(m => {
-              const wrap = m.closest('div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stContainer"]');
+              const wrap = findWrap(m);
               if (!wrap) return;
 
+              // Apply class to wrapper and a couple inner layers
               wrap.classList.add('dex-card');
 
-              // inner panel (Streamlit often paints background here)
-              const inner = wrap.querySelector(':scope > div');
-              if (inner) inner.classList.add('dex-card');
+              const inner1 = wrap.firstElementChild;
+              const inner2 = inner1 ? inner1.firstElementChild : null;
+              if (inner1) inner1.classList.add('dex-card');
+              if (inner2) inner2.classList.add('dex-card');
 
+              // Copy CSS vars from marker to wrapper (and inner layers to be safe)
               const bg1 = m.style.getPropertyValue('--opp-bg1');
               const bg2 = m.style.getPropertyValue('--opp-bg2');
 
-              if (bg1) {
-                wrap.style.setProperty('--opp-bg1', bg1.trim());
-                if (inner) inner.style.setProperty('--opp-bg1', bg1.trim());
-              }
-              if (bg2) {
-                wrap.style.setProperty('--opp-bg2', bg2.trim());
-                if (inner) inner.style.setProperty('--opp-bg2', bg2.trim());
-              }
+              [wrap, inner1, inner2].forEach(node => {
+                if (!node) return;
+                if (bg1) node.style.setProperty('--opp-bg1', bg1.trim());
+                if (bg2) node.style.setProperty('--opp-bg2', bg2.trim());
+              });
 
-              // debug stamps
+              // debug
               wrap.dataset.dexcard = "1";
               wrap.dataset.bg1 = (bg1 || "").trim();
               wrap.dataset.bg2 = (bg2 || "").trim();
@@ -704,7 +710,7 @@ def _inject_dex_card_class_hoister():
           }
 
           hoist();
-          const doc = window.parent && window.parent.document ? window.parent.document : document;
+          const doc = (window.parent && window.parent.document) ? window.parent.document : document;
           const obs = new MutationObserver(() => hoist());
           obs.observe(doc.body, { childList: true, subtree: true });
         })();
