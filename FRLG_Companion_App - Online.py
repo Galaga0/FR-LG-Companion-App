@@ -2980,17 +2980,28 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
         g1a, _ = TYPE_GRADIENT.get(primary_type, DEFAULT_CARD_GRADIENT)
         g1, g2 = g1a, "rgba(0,0,0,0)"
 
-    # Marker first, then CSS that styles the container that contains it
+    # Marker must be inside the container we want to style
     st.markdown(f"<div id='dex_marker_{gid}'></div>", unsafe_allow_html=True)
+
+    # Streamlit keeps changing wrappers. Target the common ones.
+    selector = ",".join([
+        f"div[data-testid='stContainer']:has(#dex_marker_{gid})",
+        f"div[data-testid='stVerticalBlock']:has(#dex_marker_{gid})",
+        f"div[data-testid='stVerticalBlockBorderWrapper']:has(#dex_marker_{gid})",
+        f"div[data-testid='stBlock']:has(#dex_marker_{gid})",
+        f"div[data-testid='stElementContainer']:has(#dex_marker_{gid})",
+    ])
+
     st.markdown(
         f"""
         <style>
-        div[data-testid="stContainer"]:has(#dex_marker_{gid}) {{
-          background: radial-gradient(circle at top left, {g1}, {g2});
-          border-radius: 14px;
-          border: 1px solid rgba(148,163,184,.7);
-          padding: 12px 12px 10px 12px;
-          margin-bottom: 10px;
+        {selector} {{
+          background: radial-gradient(circle at top left, {g1}, {g2}) !important;
+          border-radius: 14px !important;
+          border: 1px solid rgba(148,163,184,.7) !important;
+          padding: 12px 12px 10px 12px !important;
+          margin-bottom: 10px !important;
+          overflow: hidden !important;
         }}
         </style>
         """,
