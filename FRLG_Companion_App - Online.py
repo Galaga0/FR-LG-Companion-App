@@ -285,36 +285,58 @@ st.markdown("""
 }
 
 /* Make evolve action look like a real button */
+/* Make evolve action look like a REAL button (high contrast, not washed out) */
 .evo-link-btn{
-  display:inline-block;
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 8px 16px;
   border-radius: 9999px;
-  border: 1px solid rgba(255,255,255,0.45);
-  background: rgba(37,99,235,0.95);
-  color: #fff !important;
-  font-weight: 700;
+
+  /* Force solid, visible styling even inside Streamlit's markdown/link CSS */
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%) !important;
+  border: 2px solid rgba(255,255,255,0.75) !important;
+
+  color: #ffffff !important;
+  font-weight: 800;
   font-size: 13px;
+  letter-spacing: 0.2px;
   text-decoration: none !important;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-  transition: transform .05s ease-out, box-shadow .05s ease-out, background .05s ease-out;
+
+  box-shadow: 0 10px 18px rgba(0,0,0,0.35);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.25);
+
+  transform: translateY(0);
+  transition: transform .08s ease-out, box-shadow .08s ease-out, filter .08s ease-out;
 }
+
 .evo-link-btn:hover{
-  background: rgba(59,130,246,1);
+  filter: brightness(1.08) saturate(1.05);
   transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+  box-shadow: 0 14px 26px rgba(0,0,0,0.42);
 }
+
 .evo-link-btn:active{
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 14px rgba(0,0,0,0.35);
+  filter: brightness(0.98);
+}
+
+.evo-link-btn:focus-visible{
+  outline: 3px solid rgba(56,189,248,0.95);
+  outline-offset: 2px;
 }
 
 /* Disabled state */
 .evo-link-btn.disabled{
-  opacity: .45;
+  opacity: 0.40;
   pointer-events: none;
-  background: rgba(100,116,139,0.8);
-  border-color: rgba(255,255,255,0.25);
+
+  background: rgba(100,116,139,0.95) !important; /* solid slate */
+  border: 2px solid rgba(255,255,255,0.35) !important;
   box-shadow: none;
+  text-shadow: none;
 }
 
 .moves-grid th, .moves-grid td{
