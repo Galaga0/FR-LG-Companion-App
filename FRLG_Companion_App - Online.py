@@ -696,6 +696,8 @@ div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-steel > div{
 div[data-testid="stVerticalBlockBorderWrapper"].dex-card.dex-normal > div{
   background: radial-gradient(circle at top left, rgba(209,213,219,0.85), rgba(156,163,175,0.75)) !important;
 }
+</style>
+""", unsafe_allow_html=True)
 
 def _inject_dex_card_class_hoister():
     components.html(
@@ -719,7 +721,6 @@ def _inject_dex_card_class_hoister():
             });
           }
 
-          // Run now + keep running as Streamlit rerenders DOM
           hoist();
           const doc = window.parent && window.parent.document ? window.parent.document : document;
           const obs = new MutationObserver(() => hoist());
@@ -731,9 +732,6 @@ def _inject_dex_card_class_hoister():
     )
 
 _inject_dex_card_class_hoister()
-
-</style>
-""", unsafe_allow_html=True)
 
 # =============================================================================
 # Constants
