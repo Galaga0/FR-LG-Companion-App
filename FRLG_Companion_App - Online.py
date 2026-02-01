@@ -621,147 +621,155 @@ st.markdown("""
   align-items: center;
 }
 
-/* --- Pokédex card gradients (Streamlit-proof) --- */
-.dex-grad-marker{
-  /* keep it in the DOM but invisible */
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
+/* ==========================
+   POKÉDEX CARD GRADIENTS (NO JS)
+   ========================== */
 
-/* This class is hoisted onto the actual st.container border wrapper */
-.dex-card{
+/* Default values */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker),
+div[data-testid="stContainer"]:has(.dex-grad-marker){
   position: relative !important;
   overflow: hidden !important;
   border-radius: 14px !important;
-  border: 1px solid rgba(148,163,184,.7) !important;
 
-  /* Important: don't let Streamlit's panel background win */
+  /* defaults */
+  --opp-bg1: rgba(148,163,184,0.80);
+  --opp-bg2: rgba(0,0,0,0);
   background: transparent !important;
-
-  /* Make z-index behave sanely */
-  isolation: isolate !important;
 }
 
-.dex-card::before{
+/* Paint gradient behind everything in the container */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)::before,
+div[data-testid="stContainer"]:has(.dex-grad-marker)::before{
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-
-  background: radial-gradient(
-    circle at top left,
-    var(--opp-bg1, rgba(148,163,184,0.22)),
-    var(--opp-bg2, rgba(15,23,42,0.0))
-  ) !important;
-
   pointer-events: none;
+
+  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
 }
 
-/* Everything inside stays above the gradient */
-.dex-card > *{
+/* Force Streamlit's inner blocks to not repaint opaque backgrounds */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) * ,
+div[data-testid="stContainer"]:has(.dex-grad-marker) * {
+  background-color: transparent !important;
+  background: transparent !important;
   position: relative;
   z-index: 1;
 }
 
-/* Stop Streamlit inner blocks from repainting opaque panels */
-.dex-card [data-testid="stVerticalBlock"],
-.dex-card [data-testid="stHorizontalBlock"],
-.dex-card [data-testid="stMarkdownContainer"],
-.dex-card [data-testid="stCaptionContainer"],
-.dex-card [data-testid="stText"],
-.dex-card [data-testid="stElementContainer"],
-.dex-card [data-testid="stBlock"]{
-  background: transparent !important;
-  background-color: transparent !important;
+/* The marker itself should not take space */
+.dex-grad-marker{
+  display: none;
 }
+
+/* ---- Primary type sets BG1 (first color) ---- */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Fire),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Fire){ --opp-bg1: rgba(248,113,113,0.85); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Water),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Water){ --opp-bg1: rgba(56,189,248,0.85); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Electric),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Electric){ --opp-bg1: rgba(250,204,21,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Grass),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Grass){ --opp-bg1: rgba(52,211,153,0.85); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Ice),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Ice){ --opp-bg1: rgba(125,211,252,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Fighting),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Fighting){ --opp-bg1: rgba(248,113,113,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Poison),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Poison){ --opp-bg1: rgba(192,132,252,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Ground),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Ground){ --opp-bg1: rgba(234,179,8,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Flying),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Flying){ --opp-bg1: rgba(129,140,248,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Psychic),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Psychic){ --opp-bg1: rgba(244,114,182,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Bug),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Bug){ --opp-bg1: rgba(190,242,100,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Rock),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Rock){ --opp-bg1: rgba(253,186,116,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Ghost),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Ghost){ --opp-bg1: rgba(167,139,250,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Dragon),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Dragon){ --opp-bg1: rgba(96,165,250,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Dark),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Dark){ --opp-bg1: rgba(31,41,55,0.95); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Steel),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Steel){ --opp-bg1: rgba(148,163,184,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Normal),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Normal){ --opp-bg1: rgba(209,213,219,0.85); }
+
+/* ---- Secondary type sets BG2 (second color) ---- */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Fire),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Fire){ --opp-bg2: rgba(239,68,68,0.75); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Water),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Water){ --opp-bg2: rgba(59,130,246,0.75); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Electric),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Electric){ --opp-bg2: rgba(234,179,8,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Grass),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Grass){ --opp-bg2: rgba(34,197,94,0.75); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Ice),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Ice){ --opp-bg2: rgba(59,130,246,0.75); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Fighting),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Fighting){ --opp-bg2: rgba(220,38,38,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Poison),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Poison){ --opp-bg2: rgba(168,85,247,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Ground),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Ground){ --opp-bg2: rgba(202,138,4,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Flying),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Flying){ --opp-bg2: rgba(59,130,246,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Psychic),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Psychic){ --opp-bg2: rgba(236,72,153,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Bug),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Bug){ --opp-bg2: rgba(132,204,22,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Rock),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Rock){ --opp-bg2: rgba(234,179,8,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Ghost),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Ghost){ --opp-bg2: rgba(129,140,248,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Dragon),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Dragon){ --opp-bg2: rgba(37,99,235,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Dark),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Dark){ --opp-bg2: rgba(15,23,42,0.90); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Steel),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Steel){ --opp-bg2: rgba(75,85,99,0.80); }
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Normal),
+div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Normal){ --opp-bg2: rgba(156,163,175,0.75); }
 </style>
 """, unsafe_allow_html=True)
-
-def _inject_dex_card_class_hoister():
-    components.html(
-        """
-        <script>
-        (function() {
-          // prevent installing 50 observers across reruns
-          if (window.__dexCardHoisterInstalled) return;
-          window.__dexCardHoisterInstalled = true;
-
-          function getParentDoc(){
-            try {
-              return (window.parent && window.parent.document) ? window.parent.document : document;
-            } catch(e){
-              return document;
-            }
-          }
-
-          const doc = getParentDoc();
-
-          function findOuterWrapper(marker){
-            // Prefer Streamlit's border wrapper for st.container(border=True)
-            let w = marker.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
-
-            // Fallbacks for Streamlit variants
-            if (!w) w = marker.closest('div[data-testid="stContainer"]');
-            if (!w) return null;
-
-            // Climb to the outermost wrapper of the same kind that still contains this marker
-            let cur = w;
-            while (cur && cur.parentElement) {
-              const parentCandidate = cur.parentElement.closest(
-                'div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stContainer"]'
-              );
-              if (!parentCandidate) break;
-              if (!parentCandidate.contains(marker)) break;
-              if (parentCandidate === cur) break;
-              // Only move up if it's truly outside the current wrapper
-              if (parentCandidate.contains(cur)) cur = parentCandidate;
-              else break;
-            }
-            return cur;
-          }
-
-          function hoist(){
-            const markers = doc.querySelectorAll('.dex-grad-marker');
-            markers.forEach(m => {
-              const wrap = findOuterWrapper(m);
-              if (!wrap) return;
-
-              wrap.classList.add('dex-card');
-
-              // Inner vertical block often owns the painted panel background
-              const innerVB =
-                wrap.querySelector(':scope > div[data-testid="stVerticalBlock"]') ||
-                wrap.querySelector('div[data-testid="stVerticalBlock"]');
-
-              if (innerVB) innerVB.classList.add('dex-card');
-
-              // Copy CSS vars from marker -> wrapper (+ inner block)
-              const bg1 = m.style.getPropertyValue('--opp-bg1');
-              const bg2 = m.style.getPropertyValue('--opp-bg2');
-
-              [wrap, innerVB].forEach(node => {
-                if (!node) return;
-                if (bg1) node.style.setProperty('--opp-bg1', bg1.trim());
-                if (bg2) node.style.setProperty('--opp-bg2', bg2.trim());
-              });
-            });
-          }
-
-          hoist();
-          const obs = new MutationObserver(hoist);
-          obs.observe(doc.body, { childList: true, subtree: true });
-        })();
-        </script>
-        """,
-        height=0,
-    )
-
-_inject_dex_card_class_hoister()
 
 # =============================================================================
 # Constants
@@ -3105,10 +3113,17 @@ def render_pokedex():
         st.markdown("---")
     
 def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
-    # EXACT same variable style model as Battle cards
-    style = _gradient_style_for_types(t1, t2)  # returns "--opp-bg1:...;--opp-bg2:...;"
+    # Normalize to your canonical type labels
+    p = normalize_type(t1) or normalize_type(t2) or "Normal"
+    s = normalize_type(t2)
+
+    # Build marker classes the CSS can react to
+    cls = ["dex-grad-marker", f"t1-{p}"]
+    if s and s != p:
+        cls.append(f"t2-{s}")
+
     st.markdown(
-        f"<span class='dex-grad-marker' style='{style}'></span>",
+        f"<span class=\"{' '.join(cls)}\"></span>",
         unsafe_allow_html=True,
     )
 
