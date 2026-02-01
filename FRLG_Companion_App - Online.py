@@ -3264,23 +3264,6 @@ def render_battle():
     if not STATE["opponents"]["encounters"]:
         st.error("Could not load opponents automatically.")
         return
-        # Allow clicking cards via URL query (?enc=..&mon=..)
-    try:
-        q = st.experimental_get_query_params()
-        enc_q = q.get("enc", [None])[0]
-        mon_q = q.get("mon", [None])[0]
-        if enc_q is not None and mon_q is not None:
-            ei = int(enc_q)
-            mi = int(mon_q)
-            if 0 <= ei < len(STATE["opponents"]["encounters"]):
-                mons_ei = STATE["opponents"]["encounters"][ei].get("mons", [])
-                if 0 <= mi < len(mons_ei):
-                    STATE["last_battle_pick"] = [ei, mi]
-                    save_state(STATE)
-            # Clear query params so they don't stick forever
-            st.experimental_set_query_params()
-    except Exception:
-        pass
 
     # Pick trainer + mon (instant updates; no form, no button)
     enc_options = [f"{i+1}. {enc['label']}" for i, enc in enumerate(STATE["opponents"]["encounters"])]
@@ -3856,6 +3839,24 @@ def render_evo_watch():
 
     rebuild_moves_default = False  # keep current behavior
 
+    # === Handle evolve link clicks via query params ===
+    try:
+        qp = dict(st.query_params)
+    except Exception:
+        qp = st.experimental_get_query_params()
+
+    evo_guid = (qp.get("evo_guid", [None])[0] if isinstance(qp.get("evo_guid"), list) else qp.get("evo_guid"))
+    evo_to   = (qp.get("evo_to",   [None])[0] if isinstance(qp.get("evo_to"), list)   else qp.get("evo_to"))
+    evo_force = (qp.get("evo_force", [None])[0] if isinstance(qp.get("evo_force"), list) else qp.get("evo_force"))
+
+    if evo_guid and evo_to:
+        _try_evolve(str(evo_guid), str(evo_to), do_force=(str(evo_force).lower() in ("1", "true", "yes", "on")))
+        # Clear params so it doesn't re-trigger on rerun
+        try:
+            st.query_params.clear()
+        except Exception:
+            st.experimental_set_query_params()
+
     def _try_evolve(mon_guid: str, evo_to: str, do_force: bool):
         # Find mon
         target_mon = None
@@ -4094,23 +4095,24 @@ def render_evo_watch():
                     evo_to = str(tgt_name)
                     evo_force = "1" if (force_all and not bool(r.get("ready"))) else "0"
 
-                    href = f"?evo_guid={quote(evo_guid)}&evo_to={quote(evo_to)}&evo_force={evo_force}"
-                    link_class = "evo-link-btn" if ready_now else "evo-link-btn disabled"
-                    link_label = f"Evolve → {tgt_name}" + (" [force]" if evo_force == "1" else "")
+                    guid = str(mon.get("guid", ""))
+                    to_name = str(row.get("to", ""))
+                    is_ready = bool(row.get("ready"))
+                    force_on = bool(st.session_state.get("force_evo", False))
 
-                    row_html = f"""
-                        <div class="evo-row-card" style="{row_style}">
-                            <div class="evo-grid">
-                                <div>{sprite_img_html(tgt_name)}{tgt_name}</div>
-                                <div><span class="badge {r['badge']}">{method_pretty}</span></div>
-                                <div>{r["req_txt"]}</div>
-                                <div><span class="badge {'b-ready' if r['ready'] else 'b-wait'}">{r["status"]}</span></div>
-                                <div>{r["from_total"]} → {r["to_total"]}</div>
-                                <div><a class="{link_class}" href="{href}">{link_label}</a></div>
-                            </div>
-                        </div>
-                    """
-                    st.markdown(row_html, unsafe_allow_html=True)
+                    href = "?" + urlencode({
+                        "evo_guid": guid,
+                        "evo_to": to_name,
+                        "evo_force": "1" if force_on else "0",
+                    })
+
+                    btn_cls = "evo-link-btn" if (is_ready or force_on) else "evo-link-btn disabled"
+                    btn_txt = "Evolve" if (is_ready or force_on) else "Not ready"
+
+                    st.markdown(
+                        f'<a class="{btn_cls}" href="{href}">{btn_txt}</a>',
+                        unsafe_allow_html=True,
+                    )
 
 def render_saveload():
     st.header("Save / Load")
