@@ -3849,28 +3849,28 @@ def render_evo_watch():
             use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
 
             with cols[j].container(border=True):
-                    # current mon types -> gradient for the marked header area
-                    cur_types = purge_fairy_types_pair(mon.get("types") or [])
-                    cur_t1, cur_t2 = cur_types[0], cur_types[1]
-                    band_style = _cur_band_vars(cur_t1, cur_t2)
+                # current mon types -> gradient for the marked header area
+                cur_types = purge_fairy_types_pair(mon.get("types") or [])
+                cur_t1, cur_t2 = cur_types[0], cur_types[1]
+                band_style = _cur_band_vars(cur_t1, cur_t2)
 
-                    current_band_html = f"""
-                      <div class="evo-current-band" style="{band_style}">
-                        <div class="evo-current-title">
-                          {sprite_img_html(species)}<span><strong>{species} • Lv{lvl}</strong></span>
-                        </div>
+                current_band_html = f"""
+                  <div class="evo-current-band" style="{band_style}">
+                    <div class="evo-current-title">
+                      {sprite_img_html(species)}<span><strong>{species} • Lv{lvl}</strong></span>
+                    </div>
 
-                        <div class="evo-grid evo-head">
-                          <div>Target</div>
-                          <div>Method</div>
-                          <div>Requirement</div>
-                          <div>Status</div>
-                          <div>Totals</div>
-                          <div>Action</div>
-                        </div>
-                      </div>
-                    """
-                    st.markdown(current_band_html, unsafe_allow_html=True)
+                    <div class="evo-grid evo-head">
+                      <div>Target</div>
+                      <div>Method</div>
+                      <div>Requirement</div>
+                      <div>Status</div>
+                      <div>Totals</div>
+                      <div>Action</div>
+                    </div>
+                  </div>
+                """
+                st.markdown(current_band_html, unsafe_allow_html=True)
 
                 for idx, r in enumerate(use_rows):
                     # Current Pokémon types (top half)
