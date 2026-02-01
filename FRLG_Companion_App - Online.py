@@ -621,57 +621,29 @@ st.markdown("""
   align-items: center;
 }
 
-/* --- Pokédex card gradients (actually Streamlit-proof) --- */
-.dex-grad-marker { display:none; }
+/* --- Pokédex card gradients (Streamlit-proof) --- */
+.dex-grad-marker{
+  /* keep it in the DOM but invisible */
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
 
-/* Style by class, not Streamlit's ever-changing testids */
+/* This class is hoisted onto the actual st.container border wrapper */
 .dex-card{
   position: relative !important;
   overflow: hidden !important;
   border-radius: 14px !important;
   border: 1px solid rgba(148,163,184,.7) !important;
 
-  background: radial-gradient(
-    circle at top left,
-    var(--opp-bg1, rgba(148,163,184,0.22)),
-    var(--opp-bg2, rgba(15,23,42,0.0))
-  ) !important;
-}
-
-/* Streamlit often paints background on inner panels: force them to inherit */
-.dex-card > div,
-.dex-card > div > div{
-  background: inherit !important;
-}
-
-/* Prevent inner layout blocks from repainting opaque panels */
-.dex-card [data-testid="stVerticalBlock"],
-.dex-card [data-testid="stHorizontalBlock"],
-.dex-card [data-testid="stMarkdownContainer"],
-.dex-card [data-testid="stCaptionContainer"],
-.dex-card [data-testid="stText"]{
-  background-color: transparent !important;
-}
-
-/* Keep content above background */
-.dex-card *{
-  position: relative;
-  z-index: 1;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-.dex-card{
-  position: relative !important;
-  overflow: hidden !important;
-  border-radius: 14px !important;
-  border: 1px solid rgba(148,163,184,.7) !important;
-
-  /* Let ::before do the painting */
+  /* Important: don't let Streamlit's panel background win */
   background: transparent !important;
+
+  /* Make z-index behave sanely */
+  isolation: isolate !important;
 }
 
 .dex-card::before{
@@ -679,12 +651,15 @@ st.markdown("""
   position: absolute;
   inset: 0;
   z-index: 0;
+  border-radius: inherit;
 
   background: radial-gradient(
     circle at top left,
     var(--opp-bg1, rgba(148,163,184,0.22)),
     var(--opp-bg2, rgba(15,23,42,0.0))
-  );
+  ) !important;
+
+  pointer-events: none;
 }
 
 /* Everything inside stays above the gradient */
@@ -693,15 +668,16 @@ st.markdown("""
   z-index: 1;
 }
 
-/* Keep inner Streamlit panels from painting opaque layers */
+/* Stop Streamlit inner blocks from repainting opaque panels */
 .dex-card [data-testid="stVerticalBlock"],
 .dex-card [data-testid="stHorizontalBlock"],
 .dex-card [data-testid="stMarkdownContainer"],
 .dex-card [data-testid="stCaptionContainer"],
 .dex-card [data-testid="stText"],
-.dex-card [data-testid="stElementContainer"]{
-  background-color: transparent !important;
+.dex-card [data-testid="stElementContainer"],
+.dex-card [data-testid="stBlock"]{
   background: transparent !important;
+  background-color: transparent !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -711,33 +687,60 @@ def _inject_dex_card_class_hoister():
         """
         <script>
         (function() {
-          function findWrap(el){
-            // IMPORTANT: target the container border wrapper (the actual "card")
-            const bw = el.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
-            if (bw) return bw;
+          // prevent installing 50 observers across reruns
+          if (window.__dexCardHoisterInstalled) return;
+          window.__dexCardHoisterInstalled = true;
 
-            // fallbacks (less ideal)
-            return el.closest('div[data-testid="stContainer"]')
-                || el.closest('div[data-testid="stBlock"]')
-                || null;
+          function getParentDoc(){
+            try {
+              return (window.parent && window.parent.document) ? window.parent.document : document;
+            } catch(e){
+              return document;
+            }
           }
 
-          function hoist() {
-            const doc = (window.parent && window.parent.document) ? window.parent.document : document;
-            const markers = doc.querySelectorAll('.dex-grad-marker');
+          const doc = getParentDoc();
 
+          function findOuterWrapper(marker){
+            // Prefer Streamlit's border wrapper for st.container(border=True)
+            let w = marker.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
+
+            // Fallbacks for Streamlit variants
+            if (!w) w = marker.closest('div[data-testid="stContainer"]');
+            if (!w) return null;
+
+            // Climb to the outermost wrapper of the same kind that still contains this marker
+            let cur = w;
+            while (cur && cur.parentElement) {
+              const parentCandidate = cur.parentElement.closest(
+                'div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stContainer"]'
+              );
+              if (!parentCandidate) break;
+              if (!parentCandidate.contains(marker)) break;
+              if (parentCandidate === cur) break;
+              // Only move up if it's truly outside the current wrapper
+              if (parentCandidate.contains(cur)) cur = parentCandidate;
+              else break;
+            }
+            return cur;
+          }
+
+          function hoist(){
+            const markers = doc.querySelectorAll('.dex-grad-marker');
             markers.forEach(m => {
-              const wrap = findWrap(m);
+              const wrap = findOuterWrapper(m);
               if (!wrap) return;
 
-              // Apply class to the real card wrapper
               wrap.classList.add('dex-card');
 
-              // Also tag likely inner block so Streamlit doesn't repaint over us
-              const innerVB = wrap.querySelector('div[data-testid="stVerticalBlock"]');
+              // Inner vertical block often owns the painted panel background
+              const innerVB =
+                wrap.querySelector(':scope > div[data-testid="stVerticalBlock"]') ||
+                wrap.querySelector('div[data-testid="stVerticalBlock"]');
+
               if (innerVB) innerVB.classList.add('dex-card');
 
-              // Copy CSS vars from marker to wrapper (and inner block)
+              // Copy CSS vars from marker -> wrapper (+ inner block)
               const bg1 = m.style.getPropertyValue('--opp-bg1');
               const bg2 = m.style.getPropertyValue('--opp-bg2');
 
@@ -746,15 +749,11 @@ def _inject_dex_card_class_hoister():
                 if (bg1) node.style.setProperty('--opp-bg1', bg1.trim());
                 if (bg2) node.style.setProperty('--opp-bg2', bg2.trim());
               });
-
-              // Optional: remove marker so it can’t “win” the closest() race later
-              // m.remove();
             });
           }
 
           hoist();
-          const doc = (window.parent && window.parent.document) ? window.parent.document : document;
-          const obs = new MutationObserver(() => hoist());
+          const obs = new MutationObserver(hoist);
           obs.observe(doc.body, { childList: true, subtree: true });
         })();
         </script>
