@@ -2734,7 +2734,7 @@ def render_pokedex():
         t1 = t[0] if len(t) > 0 else "—"
         t2 = t[1] if len(t) > 1 else "—"
 
-        with st.container():
+        with st.container(border=True):
             _dex_card_container_style(gid, t1, t2)
 
             header_html = f"""
@@ -2855,7 +2855,7 @@ def render_pokedex():
             t1 = t[0] if len(t) > 0 else "—"
             t2 = t[1] if len(t) > 1 else "—"
 
-            with st.container():
+            with st.container(border=True):
                 _dex_card_container_style(gid, t1, t2)
 
                 header_html = f"""
@@ -2986,8 +2986,13 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
     # IMPORTANT: Do NOT target broad wrappers like stVerticalBlock/stBlock.
     # Those can span the whole page, causing "everything gets the gradient".
     selector = ",".join([
-        f"div[data-testid='stContainer']:has(#dex_marker_{gid})",
+        # Most reliable when using st.container(border=True)
         f"div[data-testid='stVerticalBlockBorderWrapper']:has(#dex_marker_{gid})",
+
+        # Other wrappers Streamlit sometimes uses depending on version/layout
+        f"div[data-testid='stContainer']:has(#dex_marker_{gid})",
+        f"div[data-testid='stVerticalBlock']:has(#dex_marker_{gid})",
+        f"div.element-container:has(#dex_marker_{gid})",
     ])
 
     st.markdown(
@@ -2997,9 +3002,17 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
           background: radial-gradient(circle at top left, {g1}, {g2}) !important;
           border-radius: 14px !important;
           border: 1px solid rgba(148,163,184,.7) !important;
+
+          /* Make it feel like the other gradient cards */
           padding: 12px 12px 10px 12px !important;
           margin-bottom: 10px !important;
           overflow: hidden !important;
+        }}
+
+        /* Kill Streamlit's default border/padding look when border=True */
+        {selector} > div {{
+          border: none !important;
+          background: transparent !important;
         }}
         </style>
         """,
