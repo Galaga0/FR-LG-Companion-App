@@ -4123,8 +4123,20 @@ for rr in (opts or []):
                         "evo_force": "1" if force_on else "0",
                     })
 
-                    btn_cls = "evo-link-btn" if (is_ready or force_on) else "evo-link-btn disabled"
-                    btn_txt = "Evolve" if (is_ready or force_on) else "Not ready"
+                    gid = mon.get("guid") or "noguid"
+                    to_name = evo_opt.get("to") or ""
+                    to_sk = species_key(to_name) or ps_id(to_name) or "unk"
+                    opt_i = int(j)  # j = index in the evo options loop (0,1,2...)
+
+                    btn_key = f"evolve__{gid}__{to_sk}__{opt_i}"
+
+                    if st.button("Evolve", key=btn_key):
+                        ok = evolve_mon_record(mon, to_name, rebuild_moves=True)
+                        if ok:
+                            save_state(STATE)
+                            do_rerun()
+                        else:
+                            st.error("Evolution failed (species not found).")
 
                     st.markdown(
                         f'<a class="{btn_cls}" href="{href}">{btn_txt}</a>',
