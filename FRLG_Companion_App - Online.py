@@ -622,152 +622,83 @@ st.markdown("""
 }
 
 /* ==========================
-   POKÉDEX CARD GRADIENTS (NO JS)
+   POKÉDEX CARD GRADIENTS (ROBUST: NO :has)
+   The marker span becomes the gradient layer behind the card contents.
    ========================== */
 
-/* Default values */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker),
-div[data-testid="stContainer"]:has(.dex-grad-marker){
+/* Ensure bordered containers have a positioned inner wrapper
+   (this is where Streamlit puts your content) */
+div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]{
   position: relative !important;
-  overflow: hidden !important;
-  border-radius: 14px !important;
-
-  /* defaults */
-  --opp-bg1: rgba(148,163,184,0.80);
-  --opp-bg2: rgba(0,0,0,0);
   background: transparent !important;
 }
 
-/* Paint gradient behind everything in the container */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)::before,
-div[data-testid="stContainer"]:has(.dex-grad-marker)::before{
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-
-  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
-}
-
-/* Force Streamlit's inner blocks to not repaint opaque backgrounds */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) * ,
-div[data-testid="stContainer"]:has(.dex-grad-marker) * {
-  background-color: transparent !important;
-  background: transparent !important;
+/* Put all normal children above the gradient layer */
+div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] > *{
   position: relative;
   z-index: 1;
 }
 
-/* The marker itself should not take space */
+/* The gradient layer itself */
 .dex-grad-marker{
-  display: none;
+  /* defaults */
+  --opp-bg1: rgba(148,163,184,0.80);
+  --opp-bg2: rgba(0,0,0,0);
+
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: 14px !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+
+  display: block !important;
+
+  background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
 }
 
-/* ---- Primary type sets BG1 (first color) ---- */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Fire),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Fire){ --opp-bg1: rgba(248,113,113,0.85); }
+/* Make Streamlit’s internal blocks stop painting opaque backgrounds on top */
+.dex-grad-marker ~ *{
+  background: transparent !important;
+  background-color: transparent !important;
+}
 
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Water),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Water){ --opp-bg1: rgba(56,189,248,0.85); }
+/* ---- Primary type sets BG1 ---- */
+.dex-grad-marker.t1-Fire{     --opp-bg1: rgba(248,113,113,0.85); }
+.dex-grad-marker.t1-Water{    --opp-bg1: rgba(56,189,248,0.85); }
+.dex-grad-marker.t1-Electric{ --opp-bg1: rgba(250,204,21,0.90); }
+.dex-grad-marker.t1-Grass{    --opp-bg1: rgba(52,211,153,0.85); }
+.dex-grad-marker.t1-Ice{      --opp-bg1: rgba(125,211,252,0.90); }
+.dex-grad-marker.t1-Fighting{ --opp-bg1: rgba(248,113,113,0.90); }
+.dex-grad-marker.t1-Poison{   --opp-bg1: rgba(192,132,252,0.90); }
+.dex-grad-marker.t1-Ground{   --opp-bg1: rgba(234,179,8,0.90); }
+.dex-grad-marker.t1-Flying{   --opp-bg1: rgba(129,140,248,0.90); }
+.dex-grad-marker.t1-Psychic{  --opp-bg1: rgba(244,114,182,0.90); }
+.dex-grad-marker.t1-Bug{      --opp-bg1: rgba(190,242,100,0.90); }
+.dex-grad-marker.t1-Rock{     --opp-bg1: rgba(253,186,116,0.90); }
+.dex-grad-marker.t1-Ghost{    --opp-bg1: rgba(167,139,250,0.90); }
+.dex-grad-marker.t1-Dragon{   --opp-bg1: rgba(96,165,250,0.90); }
+.dex-grad-marker.t1-Dark{     --opp-bg1: rgba(31,41,55,0.95); }
+.dex-grad-marker.t1-Steel{    --opp-bg1: rgba(148,163,184,0.90); }
+.dex-grad-marker.t1-Normal{   --opp-bg1: rgba(209,213,219,0.85); }
 
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Electric),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Electric){ --opp-bg1: rgba(250,204,21,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Grass),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Grass){ --opp-bg1: rgba(52,211,153,0.85); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Ice),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Ice){ --opp-bg1: rgba(125,211,252,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Fighting),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Fighting){ --opp-bg1: rgba(248,113,113,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Poison),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Poison){ --opp-bg1: rgba(192,132,252,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Ground),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Ground){ --opp-bg1: rgba(234,179,8,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Flying),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Flying){ --opp-bg1: rgba(129,140,248,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Psychic),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Psychic){ --opp-bg1: rgba(244,114,182,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Bug),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Bug){ --opp-bg1: rgba(190,242,100,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Rock),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Rock){ --opp-bg1: rgba(253,186,116,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Ghost),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Ghost){ --opp-bg1: rgba(167,139,250,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Dragon),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Dragon){ --opp-bg1: rgba(96,165,250,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Dark),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Dark){ --opp-bg1: rgba(31,41,55,0.95); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Steel),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Steel){ --opp-bg1: rgba(148,163,184,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t1-Normal),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t1-Normal){ --opp-bg1: rgba(209,213,219,0.85); }
-
-/* ---- Secondary type sets BG2 (second color) ---- */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Fire),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Fire){ --opp-bg2: rgba(239,68,68,0.75); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Water),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Water){ --opp-bg2: rgba(59,130,246,0.75); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Electric),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Electric){ --opp-bg2: rgba(234,179,8,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Grass),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Grass){ --opp-bg2: rgba(34,197,94,0.75); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Ice),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Ice){ --opp-bg2: rgba(59,130,246,0.75); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Fighting),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Fighting){ --opp-bg2: rgba(220,38,38,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Poison),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Poison){ --opp-bg2: rgba(168,85,247,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Ground),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Ground){ --opp-bg2: rgba(202,138,4,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Flying),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Flying){ --opp-bg2: rgba(59,130,246,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Psychic),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Psychic){ --opp-bg2: rgba(236,72,153,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Bug),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Bug){ --opp-bg2: rgba(132,204,22,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Rock),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Rock){ --opp-bg2: rgba(234,179,8,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Ghost),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Ghost){ --opp-bg2: rgba(129,140,248,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Dragon),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Dragon){ --opp-bg2: rgba(37,99,235,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Dark),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Dark){ --opp-bg2: rgba(15,23,42,0.90); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Steel),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Steel){ --opp-bg2: rgba(75,85,99,0.80); }
-
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker.t2-Normal),
-div[data-testid="stContainer"]:has(.dex-grad-marker.t2-Normal){ --opp-bg2: rgba(156,163,175,0.75); }
+/* ---- Secondary type sets BG2 ---- */
+.dex-grad-marker.t2-Fire{     --opp-bg2: rgba(239,68,68,0.75); }
+.dex-grad-marker.t2-Water{    --opp-bg2: rgba(59,130,246,0.75); }
+.dex-grad-marker.t2-Electric{ --opp-bg2: rgba(234,179,8,0.80); }
+.dex-grad-marker.t2-Grass{    --opp-bg2: rgba(34,197,94,0.75); }
+.dex-grad-marker.t2-Ice{      --opp-bg2: rgba(59,130,246,0.75); }
+.dex-grad-marker.t2-Fighting{ --opp-bg2: rgba(220,38,38,0.80); }
+.dex-grad-marker.t2-Poison{   --opp-bg2: rgba(168,85,247,0.80); }
+.dex-grad-marker.t2-Ground{   --opp-bg2: rgba(202,138,4,0.80); }
+.dex-grad-marker.t2-Flying{   --opp-bg2: rgba(59,130,246,0.80); }
+.dex-grad-marker.t2-Psychic{  --opp-bg2: rgba(236,72,153,0.80); }
+.dex-grad-marker.t2-Bug{      --opp-bg2: rgba(132,204,22,0.80); }
+.dex-grad-marker.t2-Rock{     --opp-bg2: rgba(234,179,8,0.80); }
+.dex-grad-marker.t2-Ghost{    --opp-bg2: rgba(129,140,248,0.80); }
+.dex-grad-marker.t2-Dragon{   --opp-bg2: rgba(37,99,235,0.80); }
+.dex-grad-marker.t2-Dark{     --opp-bg2: rgba(15,23,42,0.90); }
+.dex-grad-marker.t2-Steel{    --opp-bg2: rgba(75,85,99,0.80); }
+.dex-grad-marker.t2-Normal{   --opp-bg2: rgba(156,163,175,0.75); }
 </style>
 """, unsafe_allow_html=True)
 
