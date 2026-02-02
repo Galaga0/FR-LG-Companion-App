@@ -3844,73 +3844,45 @@ def render_evo_watch():
 
     rebuild_moves_default = False  # keep current behavior
 
-    # === Handle evolve link clicks via query params ===
-    try:
-        qp = dict(st.query_params)
-    except Exception:
-        qp = st.experimental_get_query_params()
-
-    evo_guid = (qp.get("evo_guid", [None])[0] if isinstance(qp.get("evo_guid"), list) else qp.get("evo_guid"))
-    evo_to   = (qp.get("evo_to",   [None])[0] if isinstance(qp.get("evo_to"), list)   else qp.get("evo_to"))
-    evo_force = (qp.get("evo_force", [None])[0] if isinstance(qp.get("evo_force"), list) else qp.get("evo_force"))
-
-    # IMPORTANT:
-    # Don't call _try_evolve() yet, because it's defined further down.
-    _pending_evo = None
-    if evo_guid and evo_to:
-        _pending_evo = (str(evo_guid), str(evo_to), str(evo_force or ""))
-
-        # Clear params so it doesn't re-trigger on rerun
-        try:
-            st.query_params.clear()
-        except Exception:
-            st.experimental_set_query_params()
-
     def _try_evolve(mon_guid: str, evo_to: str, do_force: bool):
-        # Find mon
-        target_mon = None
-        for _m in STATE.get("roster", []):
-            if str(_m.get("guid")) == str(mon_guid):
-                target_mon = _m
-                break
-        if not target_mon:
-            st.error("Could not find that Pokémon in your roster.")
+    # Find mon
+    target_mon = None
+    for _m in STATE.get("roster", []):
+        if str(_m.get("guid")) == str(mon_guid):
+            target_mon = _m
+            break
+    if not target_mon:
+        st.error("Could not find that Pokémon in your roster.")
+        return
+
+    # Build evo options and find the matching row
+    opts = available_evos_for(target_mon.get("species", "")) or []
+    rows = [evo_row(target_mon, o) for o in opts]
+
+    row = next((r for r in rows if str(r.get("to")) == str(evo_to)), None)
+    if not row:
+        st.error("That evolution option no longer exists.")
+        return
+
+    ready_now = bool(row.get("ready")) or bool(do_force)
+    if not ready_now:
+        st.error("Not ready to evolve.")
+        return
+
+    # Consume stone ONLY if: item evolution, ready normally, and not forced
+    if row.get("method") == "item" and row.get("item") in items and row.get("ready") and not do_force:
+        if int(STATE["stones"].get(row["item"], 0)) <= 0:
+            st.error(f"No {row['item']} left.")
             return
+        STATE["stones"][row["item"]] -= 1
 
-        # Build evo options and find the matching row
-        opts = available_evos_for(target_mon.get("species", "")) or []
-        rows = [evo_row(target_mon, o) for o in opts]
-    
-        row = next((r for r in rows if str(r.get("to")) == str(evo_to)), None)
-        if not row:
-            st.error("That evolution option no longer exists.")
-            return
-
-        ready_now = bool(row.get("ready")) or bool(do_force)
-        if not ready_now:
-            st.error("Not ready to evolve.")
-            return
-
-        # Consume stone ONLY if: item evolution, ready normally, and not forced
-        if row.get("method") == "item" and row.get("item") in items and row.get("ready") and not do_force:
-            if int(STATE["stones"].get(row["item"], 0)) <= 0:
-                st.error(f"No {row['item']} left.")
-                return
-            STATE["stones"][row["item"]] -= 1
-
-        # Evolve (default behavior: keep moves unless you later change it)
-        if evolve_mon_record(target_mon, evo_to, rebuild_moves=False):
-            save_state(STATE)
-            st.success(f"Evolved into {evo_to}.")
-            do_rerun()
-        else:
-            st.error("Evolution failed (species not in database).")
-
-    # Execute any pending evolve request now that _try_evolve is defined
-    if _pending_evo:
-        _g, _to, _force = _pending_evo
-        _try_evolve(_g, _to, do_force=(_force.lower() in ("1", "true", "yes", "on")))
-        _pending_evo = None
+    # Evolve (default: keep moves)
+    if evolve_mon_record(target_mon, evo_to, rebuild_moves=False):
+        save_state(STATE)
+        st.success(f"Evolved into {evo_to}.")
+        do_rerun()
+    else:
+        st.error("Evolution failed (species not in database).")
 
     # ---- Helpers
     def evo_row(mon: dict, opt: dict) -> dict:
@@ -4106,14 +4078,11 @@ def render_evo_watch():
                         "manual": "Manual",
                     }
                     method_pretty = method_map.get(r.get("method") or "manual", "Manual")
+                    
                     # --- Build evolve action link (styled button) ---
                     guid = str(mon.get("guid", ""))
                     to_name = str(r.get("to", ""))
-                    force_flag = "1" if force_all else "0"
-                    href = f"?evo_guid={quote(guid)}&evo_to={quote(to_name)}&evo_force={force_flag}"
-
                     can_evolve = bool(r.get("ready")) or bool(force_all)
-                    btn_cls = "evo-link-btn" + ("" if can_evolve else " disabled")
                     btn_txt = "Evolve" if can_evolve else "Not ready"
 
                     # Totals + delta
@@ -4144,12 +4113,24 @@ def render_evo_watch():
                           </div>
 
                           <div>
-                            <a class="{btn_cls}" href="{href}">{btn_txt}</a>
+                            <div></div>
                           </div>
                         </div>
                       </div>
                     """
                     st_html(row_html)
+                    # Real in-app evolve button (no new tab / no URL navigation)
+                    _btn_spacer, _btn_col = st.columns([5, 1])
+                    with _btn_col:
+                        if st.button(
+                            btn_txt,
+                            key=f"evo_btn_{guid}_{species_key(to_name)}_{idx}",
+                            disabled=not can_evolve,
+                            type="primary",
+                        ):
+                            # Force only matters when user is forcing past requirements
+                            do_force = bool(force_all) and not bool(r.get("ready"))
+                            _try_evolve(guid, to_name, do_force=do_force)
 
                     ready_now = bool(r.get("ready")) or bool(force_all)
 
