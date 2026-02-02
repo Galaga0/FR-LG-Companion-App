@@ -3844,7 +3844,7 @@ def render_evo_watch():
 
     rebuild_moves_default = False  # keep current behavior
 
-    def _try_evolve(mon_guid: str, evo_to: str, do_force: bool):
+def _try_evolve(mon_guid: str, evo_to: str, do_force: bool):
     # Find mon
     target_mon = None
     for _m in STATE.get("roster", []):
