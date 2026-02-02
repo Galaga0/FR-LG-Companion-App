@@ -126,6 +126,10 @@ def is_base_name_151(name: str) -> bool:
     return not bool(sp.get("evolves_from"))
 
 import streamlit as st
+def st_html(html: str):
+    # Prevent Markdown from treating indented lines as a code block
+    html = "\n".join(line.lstrip() for line in (html or "").splitlines())
+    st.markdown(html, unsafe_allow_html=True)
 import textwrap
 import streamlit.components.v1 as components
 from typing import List, Dict, Tuple, Optional
@@ -4070,7 +4074,7 @@ def render_evo_watch():
                   </div>
                 </div>
               """
-                st.markdown(textwrap.dedent(current_band_html).strip(), unsafe_allow_html=True)
+                st_html(current_band_html)
 
                 if not use_rows:
                     st.caption("No evolutions available.")
@@ -4145,7 +4149,7 @@ def render_evo_watch():
                         </div>
                       </div>
                     """
-                    st.markdown(textwrap.dedent(row_html).strip(), unsafe_allow_html=True)
+                    st_html(row_html)
 
                     ready_now = bool(r.get("ready")) or bool(force_all)
 
