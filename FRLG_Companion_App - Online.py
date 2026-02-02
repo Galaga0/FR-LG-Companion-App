@@ -4101,23 +4101,6 @@ def render_evo_watch():
                     else:
                         btn_class += " disabled"
 
-                    # --- Evolve button (NO URL navigation) ---
-                    disabled = (not row.get("ready")) and (not force_all)
-
-                    if st.button(
-                        "Evolve",
-                        key=f"evolve_{mon.get('guid')}_{species_key(row.get('to',''))}",
-                        disabled=disabled,
-                        type="primary",
-                    ):
-                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all))
-
-                    # Totals + delta
-                    from_total = int(r.get("from_total", 0))
-                    to_total   = int(r.get("to_total", 0))
-                    delta = to_total - from_total
-                    delta_txt = f"+{delta}" if delta >= 0 else str(delta)
-
                     # --- Row card HTML (target appears under current Pokémon header) ---
                     row_html = f"""
                       <div class="evo-row-card" style="{row_style}">
@@ -4171,6 +4154,23 @@ def render_evo_watch():
                     gid = mon.get("guid") or "noguid"
                     to_sk = species_key(to_name) or ps_id(to_name) or "unk"
                     opt_i = int(idx)  # idx is the loop index here
+
+                    # --- Evolve button (NO URL navigation) ---
+                    disabled = (not row.get("ready")) and (not force_all)
+
+                    if st.button(
+                        "Evolve",
+                        key=f"evolve_{mon.get('guid')}_{species_key(row.get('to',''))}",
+                        disabled=disabled,
+                        type="primary",
+                    ):
+                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all))
+
+                    # Totals + delta
+                    from_total = int(r.get("from_total", 0))
+                    to_total   = int(r.get("to_total", 0))
+                    delta = to_total - from_total
+                    delta_txt = f"+{delta}" if delta >= 0 else str(delta)
 
 def render_saveload():
     st.header("Save / Load")
