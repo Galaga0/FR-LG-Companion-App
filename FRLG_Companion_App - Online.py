@@ -4078,6 +4078,14 @@ def render_evo_watch():
                         "manual": "Manual",
                     }
                     method_pretty = method_map.get(r.get("method") or "manual", "Manual")
+                    # Totals + delta MUST be defined before row_html uses them
+                    from_total = int(r.get("from_total", 0))
+                    to_total   = int(r.get("to_total", 0))
+                    delta      = to_total - from_total
+                    delta_txt  = f"+{delta}" if delta >= 0 else str(delta)
+
+                    # You render the action via st.button later, so prevent NameError in row_html
+                    action_btn_html = ""
                     
                     # --- Build evolve action link (styled button) ---
                     guid = str(mon.get("guid", ""))
@@ -4164,13 +4172,7 @@ def render_evo_watch():
                         disabled=disabled,
                         type="primary",
                     ):
-                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all))
-
-                    # Totals + delta
-                    from_total = int(r.get("from_total", 0))
-                    to_total   = int(r.get("to_total", 0))
-                    delta = to_total - from_total
-                    delta_txt = f"+{delta}" if delta >= 0 else str(delta)
+                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all)
 
 def render_saveload():
     st.header("Save / Load")
