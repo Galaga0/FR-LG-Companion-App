@@ -4081,9 +4081,27 @@ def render_evo_watch():
                     
                     # --- Build evolve action link (styled button) ---
                     guid = str(mon.get("guid", ""))
-                    to_name = str(r.get("to", ""))
+                    to_name = str(r.get("to", "")).strip()
+
                     can_evolve = bool(r.get("ready")) or bool(force_all)
                     btn_txt = "Evolve" if can_evolve else "Not ready"
+
+                    # Force param: kun "1" hvis du faktisk force’er forbi krav
+                    evo_force = "1" if (bool(force_all) and not bool(r.get("ready"))) else "0"
+
+                    href = "?" + urlencode({
+                        "evo_guid": guid,
+                        "evo_to": to_name,
+                        "evo_force": evo_force,
+                    })
+
+                    btn_class = "evo-link-btn"
+                    if can_evolve:
+                        btn_class += " active"
+                    else:
+                        btn_class += " disabled"
+
+                    action_btn_html = f'<a class="{btn_class}" href="{href}">{btn_txt}</a>'
 
                     # Totals + delta
                     from_total = int(r.get("from_total", 0))
@@ -4112,25 +4130,13 @@ def render_evo_watch():
                             <span style="opacity:.9;">({delta_txt})</span>
                           </div>
 
-                          <div>
-                            <div></div>
+                          <div style="display:flex; justify-content:flex-end;">
+                            {action_btn_html}
                           </div>
                         </div>
                       </div>
                     """
                     st_html(row_html)
-                    # Real in-app evolve button (no new tab / no URL navigation)
-                    _btn_spacer, _btn_col = st.columns([5, 1])
-                    with _btn_col:
-                        if st.button(
-                            btn_txt,
-                            key=f"evo_btn_{guid}_{species_key(to_name)}_{idx}",
-                            disabled=not can_evolve,
-                            type="primary",
-                        ):
-                            # Force only matters when user is forcing past requirements
-                            do_force = bool(force_all) and not bool(r.get("ready"))
-                            _try_evolve(guid, to_name, do_force=do_force)
 
                     ready_now = bool(r.get("ready")) or bool(force_all)
 
