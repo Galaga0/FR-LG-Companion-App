@@ -4101,7 +4101,16 @@ def render_evo_watch():
                     else:
                         btn_class += " disabled"
 
-                    action_btn_html = f'<a class="{btn_class}" href="{href}">{btn_txt}</a>'
+                    # --- Evolve button (NO URL navigation) ---
+                    disabled = (not row.get("ready")) and (not force_all)
+
+                    if st.button(
+                        "Evolve",
+                        key=f"evolve_{mon.get('guid')}_{species_key(row.get('to',''))}",
+                        disabled=disabled,
+                        type="primary",
+                    ):
+                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all))
 
                     # Totals + delta
                     from_total = int(r.get("from_total", 0))
