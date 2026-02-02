@@ -126,6 +126,7 @@ def is_base_name_151(name: str) -> bool:
     return not bool(sp.get("evolves_from"))
 
 import streamlit as st
+import textwrap
 import streamlit.components.v1 as components
 from typing import List, Dict, Tuple, Optional
 import json, os, urllib.request, ssl, re, csv, uuid, hashlib
@@ -4069,7 +4070,7 @@ def render_evo_watch():
                   </div>
                 </div>
               """
-                st.markdown(current_band_html, unsafe_allow_html=True)
+                st.markdown(textwrap.dedent(current_band_html).strip(), unsafe_allow_html=True)
 
                 if not use_rows:
                     st.caption("No evolutions available.")
@@ -4144,7 +4145,7 @@ def render_evo_watch():
                         </div>
                       </div>
                     """
-                    st.markdown(row_html, unsafe_allow_html=True)
+                    st.markdown(textwrap.dedent(row_html).strip(), unsafe_allow_html=True)
 
                     ready_now = bool(r.get("ready")) or bool(force_all)
 
@@ -4170,16 +4171,6 @@ def render_evo_watch():
                     gid = mon.get("guid") or "noguid"
                     to_sk = species_key(to_name) or ps_id(to_name) or "unk"
                     opt_i = int(idx)  # idx is the loop index here
-
-                    btn_key = f"evolve__{gid}__{to_sk}__{opt_i}"
-
-                    if st.button("Evolve", key=btn_key):
-                        ok = evolve_mon_record(mon, to_name, rebuild_moves=True)
-                        if ok:
-                            save_state(STATE)
-                            do_rerun()
-                        else:
-                            st.error("Evolution failed (species not found).")
 
 def render_saveload():
     st.header("Save / Load")
