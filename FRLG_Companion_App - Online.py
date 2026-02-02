@@ -4172,7 +4172,7 @@ def render_evo_watch():
                         disabled=disabled,
                         type="primary",
                     ):
-                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all)
+                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all))
 
 def render_saveload():
     st.header("Save / Load")
