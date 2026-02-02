@@ -627,24 +627,25 @@ st.markdown("""
 }
 
 /* ==========================
-   POKÉDEX CARD GRADIENTS (ROBUST: NO :has)
-   The marker span becomes the gradient layer behind the card contents.
+   POKÉDEX CARD GRADIENTS (NO :has, NO Z-INDEX SABOTAGE)
+   We drop the "z-index all children" rule that breaks the overlay sizing.
    ========================== */
 
-/* Ensure bordered containers have a positioned inner wrapper
-   (this is where Streamlit puts your content) */
-div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]{
-  position: relative !important;
+/* Make the bordered wrapper clip the gradient nicely */
+div[data-testid="stVerticalBlockBorderWrapper"]{
+  border-radius: 14px !important;
+  overflow: hidden !important;
   background: transparent !important;
 }
 
-/* Put all normal children above the gradient layer */
-div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"] > *{
-  position: relative;
-  z-index: 1;
+/* This is the actual card content root inside the border wrapper */
+div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]{
+  position: relative !important;
+  isolation: isolate !important; /* keeps negative z-index inside this card */
+  background: transparent !important;
 }
 
-/* The gradient layer itself */
+/* The gradient layer itself (sits BEHIND the content) */
 .dex-grad-marker{
   /* defaults */
   --opp-bg1: rgba(148,163,184,0.80);
@@ -653,18 +654,13 @@ div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlo
   position: absolute !important;
   inset: 0 !important;
   border-radius: 14px !important;
-  z-index: 0 !important;
+
+  z-index: -1 !important;           /* key: behind everything */
   pointer-events: none !important;
 
   display: block !important;
 
   background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
-}
-
-/* Make Streamlit’s internal blocks stop painting opaque backgrounds on top */
-.dex-grad-marker ~ *{
-  background: transparent !important;
-  background-color: transparent !important;
 }
 
 /* ---- Primary type sets BG1 ---- */
@@ -3059,7 +3055,7 @@ def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
         cls.append(f"t2-{s}")
 
     st.markdown(
-        f"<span class=\"{' '.join(cls)}\"></span>",
+        f"<div class=\"{' '.join(cls)}\"></div>",
         unsafe_allow_html=True,
     )
 
