@@ -3875,13 +3875,7 @@ def render_evo_watch():
         # Build evo options and find the matching row
         opts = available_evos_for(target_mon.get("species", "")) or []
         rows = [evo_row(target_mon, o) for o in opts]
-        opts = available_evos_for(from_name)  # or whatever your current mon/species variable is
-        for r in (opts or []):
-            to_name = str(r.get("to", ""))
-            method = r.get("method")
-            level  = r.get("level")
-            item   = r.get("item")
-    # ... render buttons/labels using these ...
+    
         row = next((r for r in rows if str(r.get("to")) == str(evo_to)), None)
         if not row:
             st.error("That evolution option no longer exists.")
@@ -4077,6 +4071,9 @@ def render_evo_watch():
               """
                 st.markdown(current_band_html, unsafe_allow_html=True)
 
+                if not use_rows:
+                    st.caption("No evolutions available.")
+                    continue
                 for idx, r in enumerate(use_rows):
                     # Current Pokémon types (top half)
                     cur_types = purge_fairy_types_pair(mon.get("types") or [])
@@ -4104,6 +4101,50 @@ def render_evo_watch():
                         "manual": "Manual",
                     }
                     method_pretty = method_map.get(r.get("method") or "manual", "Manual")
+                    # --- Build evolve action link (styled button) ---
+                    guid = str(mon.get("guid", ""))
+                    to_name = str(r.get("to", ""))
+                    force_flag = "1" if force_all else "0"
+                    href = f"?evo_guid={quote(guid)}&evo_to={quote(to_name)}&evo_force={force_flag}"
+
+                    can_evolve = bool(r.get("ready")) or bool(force_all)
+                    btn_cls = "evo-link-btn" + ("" if can_evolve else " disabled")
+                    btn_txt = "Evolve" if can_evolve else "Not ready"
+
+                    # Totals + delta
+                    from_total = int(r.get("from_total", 0))
+                    to_total   = int(r.get("to_total", 0))
+                    delta = to_total - from_total
+                    delta_txt = f"+{delta}" if delta >= 0 else str(delta)
+
+                    # --- Row card HTML (target appears under current Pokémon header) ---
+                    row_html = f"""
+                      <div class="evo-row-card" style="{row_style}">
+                        <div class="evo-grid">
+                          <div style="display:flex; align-items:center; gap:10px;">
+                            {sprite_img_html(to_name)}
+                            <div>
+                              <div style="font-weight:800; font-size:14px; line-height:1.15;">{to_name}</div>
+                              <div style="opacity:.9; font-size:12px;">Next evolution</div>
+                            </div>
+                          </div>
+
+                          <div>{method_pretty}</div>
+                          <div>{r.get("req_txt","—")}</div>
+                          <div>{r.get("status","")}</div>
+
+                          <div style="font-size:12px;">
+                            {from_total} → <b>{to_total}</b>
+                            <span style="opacity:.9;">({delta_txt})</span>
+                          </div>
+
+                          <div>
+                            <a class="{btn_cls}" href="{href}">{btn_txt}</a>
+                          </div>
+                        </div>
+                      </div>
+                    """
+                    st.markdown(row_html, unsafe_allow_html=True)
 
                     ready_now = bool(r.get("ready")) or bool(force_all)
 
