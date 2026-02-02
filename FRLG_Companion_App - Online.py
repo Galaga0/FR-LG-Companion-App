@@ -2834,6 +2834,7 @@ def render_pokedex():
         t1 = t[0] if len(t) > 0 else "—"
         t2 = t[1] if len(t) > 1 else "—"
 
+        # --- CARD (visual only; gradient lives here) ---
         with st.container(border=True):
             _dex_card_container_style(gid, t1, t2)
 
@@ -2850,6 +2851,135 @@ def render_pokedex():
             """
             st.markdown(header_html, unsafe_allow_html=True)
 
+        # Small spacing between the visual card and controls
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+        # --- INTERACTIONS (below card; no gradient) ---
+        c_lock, c_lv, c_apply = st.columns([1.3, 1.4, 1.0])
+
+        is_locked = gid in STATE.get("locks", [])
+        locked_new = c_lock.checkbox("🔒 Lock", value=is_locked, key=f"lock_{gid}", help="Lock to team")
+
+        lvl_key = f"lvl_{gid}"
+        if lvl_key not in st.session_state:
+            st.session_state[lvl_key] = int(mon.get("level", 1))
+
+        c_lv.number_input(
+            "Lv",
+            min_value=1,
+            max_value=100,
+            step=1,
+            key=lvl_key,
+            label_visibility="collapsed",
+        )
+
+        if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
+            new_lv = int(st.session_state.get(lvl_key, mon.get("level", 1)))
+            mon["level"] = new_lv
+            st.session_state[lvl_key] = new_lv
+            save_state(STATE)
+            st.success("Level updated.")
+            do_rerun()
+
+        if locked_new != is_locked:
+            L = set(STATE.get("locks", []))
+            if locked_new:
+                L.add(gid)
+            else:
+                L.discard(gid)
+            STATE["locks"] = sorted(list(L))
+            save_state(STATE)
+            do_rerun()
+
+        with st.expander(f"Edit / Remove {mon['species']}", expanded=False):
+            picks = [(x[0] if isinstance(x, (list, tuple)) else x) for x in mon.get('moves', [])] + ["(none)"] * 4
+            picks = picks[:4]
+            cols4 = st.columns(4)
+            for j in range(4):
+                cur = picks[j]
+                opts = ['(none)'] + (legal_moves_for_species_chain(mon.get('species', '')) or [])
+                if cur not in opts and cur.lower() not in FRLG_EXCLUDE_MOVES:
+                    opts.insert(1, cur)
+                sel = cols4[j].selectbox(
+                    f"Move {j+1}",
+                    opts,
+                    index=(opts.index(cur) if cur in opts else 0),
+                    key=f"team_mv_{gid}_{j}",
+                )
+                picks[j] = sel
+                typed = canonical_typed(sel)
+                cols4[j].caption(f"Type: {typed[1] if typed else '—'}")
+
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("Save Pokémon Moves", key=f"team_save_{gid}"):
+                    entry_moves = []
+                    for name in picks:
+                        ct = canonical_typed(name)
+                        if ct:
+                            entry_moves.append(ct)
+                            ensure_move_in_db(ct[0], default_type=ct[1])
+                    mon["moves"] = normalize_moves_list(entry_moves)
+                    save_state(STATE)
+                    st.success("Saved moves.")
+                    do_rerun()
+
+            with c2:
+                if st.button("Remove from Pokédex", key=f"rm_pokedex_team_{gid}"):
+                    base_sk = base_key_for(mon.get("species", ""))
+                    req = required_catches_for_species(mon.get("species", ""))
+                    fset = set(STATE.get("fulfilled", []))
+                    cc = STATE.get("caught_counts", {})
+
+                    STATE["locks"] = [g for g in STATE.get("locks", []) if g != gid]
+                    STATE["roster"] = [m for m in STATE.get("roster", []) if m.get("guid") != gid]
+
+                    cc[base_sk] = max(0, int(cc.get(base_sk, 0)) - 1)
+                    if cc[base_sk] >= req:
+                        fset.add(base_sk)
+                    else:
+                        fset.discard(base_sk)
+
+                    STATE["caught_counts"] = cc
+                    STATE["fulfilled"] = sorted(list(fset))
+                    save_state(STATE)
+                    do_rerun()
+
+                st.markdown("---")
+
+    st.subheader("Rest of Pokédex")
+    team_ids = {m.get('guid') for m in team if m.get('guid')}
+    rest = [m for m in roster if m.get('guid') not in team_ids]
+
+    if not rest:
+        st.caption("None.")
+    else:
+        for mon in rest:
+            gid = mon.get("guid")
+            t = mon.get("types") or ["—", "—"]
+            t1 = t[0] if len(t) > 0 else "—"
+            t2 = t[1] if len(t) > 1 else "—"
+
+            # --- CARD (visual only; gradient lives here) ---
+            with st.container(border=True):
+                _dex_card_container_style(gid, t1, t2)
+
+                header_html = f"""
+                  <div class="dex-card-head">
+                    <div>{sprite_img_html(mon['species'])}</div>
+                    <div>
+                      <div class="dex-card-title">{mon['species']} • Lv{int(mon.get('level', 1))}</div>
+                      <div class="dex-card-meta">
+                        {type_emoji(t1)} {t1}{f" / {t2}" if t2 else ""} • <b>Total {int(mon.get('total', 0))}</b>
+                      </div>
+                    </div>
+                  </div>
+                """
+                st.markdown(header_html, unsafe_allow_html=True)
+
+            st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+            # --- INTERACTIONS (below card; no gradient) ---
             c_lock, c_lv, c_apply = st.columns([1.3, 1.4, 1.0])
 
             is_locked = gid in STATE.get("locks", [])
@@ -2857,7 +2987,7 @@ def render_pokedex():
 
             lvl_key = f"lvl_{gid}"
             if lvl_key not in st.session_state:
-                st.session_state[lvl_key] = int(mon.get("level", 1))
+               st.session_state[lvl_key] = int(mon.get("level", 1))
 
             c_lv.number_input(
                 "Lv",
@@ -2899,7 +3029,7 @@ def render_pokedex():
                         f"Move {j+1}",
                         opts,
                         index=(opts.index(cur) if cur in opts else 0),
-                        key=f"team_mv_{gid}_{j}",
+                        key=f"rest_mv_{gid}_{j}",
                     )
                     picks[j] = sel
                     typed = canonical_typed(sel)
@@ -2907,7 +3037,7 @@ def render_pokedex():
 
                 c1, c2 = st.columns(2)
                 with c1:
-                    if st.button("Save Pokémon Moves", key=f"team_save_{gid}"):
+                    if st.button("Save Pokémon Moves", key=f"rest_save_{gid}"):
                         entry_moves = []
                         for name in picks:
                             ct = canonical_typed(name)
@@ -2920,7 +3050,7 @@ def render_pokedex():
                         do_rerun()
 
                 with c2:
-                    if st.button("Remove from Pokédex", key=f"rm_pokedex_team_{gid}"):
+                    if st.button("Remove from Pokédex", key=f"rm_pokedex_bench_{gid}"):
                         base_sk = base_key_for(mon.get("species", ""))
                         req = required_catches_for_species(mon.get("species", ""))
                         fset = set(STATE.get("fulfilled", []))
@@ -2939,127 +3069,6 @@ def render_pokedex():
                         STATE["fulfilled"] = sorted(list(fset))
                         save_state(STATE)
                         do_rerun()
-
-        st.markdown("---")
-
-    st.subheader("Rest of Pokédex")
-    team_ids = {m.get('guid') for m in team if m.get('guid')}
-    rest = [m for m in roster if m.get('guid') not in team_ids]
-
-    if not rest:
-        st.caption("None.")
-    else:
-        for mon in rest:
-            gid = mon.get("guid")
-            t = mon.get("types") or ["—", "—"]
-            t1 = t[0] if len(t) > 0 else "—"
-            t2 = t[1] if len(t) > 1 else "—"
-
-            with st.container(border=True):
-                _dex_card_container_style(gid, t1, t2)
-
-                header_html = f"""
-                  <div class="dex-card-head">
-                    <div>{sprite_img_html(mon['species'])}</div>
-                    <div>
-                      <div class="dex-card-title">{mon['species']} • Lv{int(mon.get('level', 1))}</div>
-                      <div class="dex-card-meta">
-                        {type_emoji(t1)} {t1}{f" / {t2}" if t2 else ""} • <b>Total {int(mon.get('total', 0))}</b>
-                      </div>
-                    </div>
-                  </div>
-                """
-                st.markdown(header_html, unsafe_allow_html=True)
-
-                c_lock, c_lv, c_apply = st.columns([1.3, 1.4, 1.0])
-
-                is_locked = gid in STATE.get("locks", [])
-                locked_new = c_lock.checkbox("🔒 Lock", value=is_locked, key=f"lock_{gid}", help="Lock to team")
-
-                lvl_key = f"lvl_{gid}"
-                if lvl_key not in st.session_state:
-                    st.session_state[lvl_key] = int(mon.get("level", 1))
-
-                c_lv.number_input(
-                    "Lv",
-                    min_value=1,
-                    max_value=100,
-                    step=1,
-                    key=lvl_key,
-                    label_visibility="collapsed",
-                )
-
-                if c_apply.button("Apply", key=f"apply_lvl_{gid}"):
-                    new_lv = int(st.session_state.get(lvl_key, mon.get("level", 1)))
-                    mon["level"] = new_lv
-                    st.session_state[lvl_key] = new_lv
-                    save_state(STATE)
-                    st.success("Level updated.")
-                    do_rerun()
-
-                if locked_new != is_locked:
-                    L = set(STATE.get("locks", []))
-                    if locked_new:
-                        L.add(gid)
-                    else:
-                        L.discard(gid)
-                    STATE["locks"] = sorted(list(L))
-                    save_state(STATE)
-                    do_rerun()
-
-                with st.expander(f"Edit / Remove {mon['species']}", expanded=False):
-                    picks = [(x[0] if isinstance(x, (list, tuple)) else x) for x in mon.get('moves', [])] + ["(none)"] * 4
-                    picks = picks[:4]
-                    cols4 = st.columns(4)
-                    for j in range(4):
-                        cur = picks[j]
-                        opts = ['(none)'] + (legal_moves_for_species_chain(mon.get('species', '')) or [])
-                        if cur not in opts and cur.lower() not in FRLG_EXCLUDE_MOVES:
-                            opts.insert(1, cur)
-                        sel = cols4[j].selectbox(
-                            f"Move {j+1}",
-                            opts,
-                            index=(opts.index(cur) if cur in opts else 0),
-                            key=f"rest_mv_{gid}_{j}",
-                        )
-                        picks[j] = sel
-                        typed = canonical_typed(sel)
-                        cols4[j].caption(f"Type: {typed[1] if typed else '—'}")
-
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.button("Save Pokémon Moves", key=f"rest_save_{gid}"):
-                            entry_moves = []
-                            for name in picks:
-                                ct = canonical_typed(name)
-                                if ct:
-                                    entry_moves.append(ct)
-                                    ensure_move_in_db(ct[0], default_type=ct[1])
-                            mon["moves"] = normalize_moves_list(entry_moves)
-                            save_state(STATE)
-                            st.success("Saved moves.")
-                            do_rerun()
-
-                    with c2:
-                        if st.button("Remove from Pokédex", key=f"rm_pokedex_bench_{gid}"):
-                            base_sk = base_key_for(mon.get("species", ""))
-                            req = required_catches_for_species(mon.get("species", ""))
-                            fset = set(STATE.get("fulfilled", []))
-                            cc = STATE.get("caught_counts", {})
-
-                            STATE["locks"] = [g for g in STATE.get("locks", []) if g != gid]
-                            STATE["roster"] = [m for m in STATE.get("roster", []) if m.get("guid") != gid]
-
-                            cc[base_sk] = max(0, int(cc.get(base_sk, 0)) - 1)
-                            if cc[base_sk] >= req:
-                                fset.add(base_sk)
-                            else:
-                                fset.discard(base_sk)
-
-                            STATE["caught_counts"] = cc
-                            STATE["fulfilled"] = sorted(list(fset))
-                            save_state(STATE)
-                            do_rerun()
 
         st.markdown("---")
     
