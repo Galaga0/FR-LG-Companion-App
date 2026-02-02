@@ -627,61 +627,56 @@ st.markdown("""
 }
 
 /* ==========================
-   POKÉDEX CARD GRADIENTS (Streamlit border containers)
-   The marker is rendered inside a markdown wrapper, so we must force that wrapper
-   to become a full-card absolute layer. Otherwise your gradient is clipped to a
-   tiny markdown block and you see... nothing.
+   POKÉDEX CARD GRADIENTS (robust)
+   Works by making the *card container itself* the positioning context,
+   then absolutely positioning the marker to cover the whole card.
    ========================== */
 
-/* Only touch bordered containers that actually contain a dex gradient marker */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker){
-  border-radius: 14px !important;
-  overflow: hidden !important;
-  background: transparent !important;
-}
-
-/* Ensure the card root is the positioning context */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
-  > div[data-testid="stVerticalBlock"]{
+/* Streamlit has used different wrappers over versions; support both */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker),
+div[data-testid="stContainer"]:has(.dex-grad-marker){
   position: relative !important;
+  overflow: hidden !important;
+  border-radius: 14px !important;
   background: transparent !important;
-  isolation: isolate !important; /* keep stacking inside the card */
 }
 
-/* Put ALL normal content above the gradient by default */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
-  > div[data-testid="stVerticalBlock"] > *{
+/* Some versions paint a background on the inner block — neutralize it */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) > div,
+div[data-testid="stContainer"]:has(.dex-grad-marker) > div{
+  background: transparent !important;
+}
+
+/* IMPORTANT: prevent intermediate wrappers from becoming containing blocks */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) div[data-testid="stMarkdownContainer"],
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) div[data-testid="stMarkdown"],
+div[data-testid="stContainer"]:has(.dex-grad-marker) div[data-testid="stMarkdownContainer"],
+div[data-testid="stContainer"]:has(.dex-grad-marker) div[data-testid="stMarkdown"]{
+  position: static !important;
+  background: transparent !important;
+}
+
+/* Put all normal content above the gradient */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker) div[data-testid="stVerticalBlock"] > *,
+div[data-testid="stContainer"]:has(.dex-grad-marker) div[data-testid="stVerticalBlock"] > *{
   position: relative !important;
   z-index: 1 !important;
 }
 
-/* The markdown wrapper that contains the marker must fill the whole card */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
-  div[data-testid="stMarkdownContainer"]:has(.dex-grad-marker),
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
-  div[data-testid="stMarkdown"]:has(.dex-grad-marker){
-  position: absolute !important;
-  inset: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  z-index: 0 !important;
-  pointer-events: none !important;
-  background: transparent !important;
-}
-
 /* The gradient layer itself */
 .dex-grad-marker{
-  /* defaults */
+  /* defaults (will be overridden by t1-/t2- classes below) */
   --opp-bg1: rgba(148,163,184,0.80);
   --opp-bg2: rgba(0,0,0,0);
 
   position: absolute !important;
   inset: 0 !important;
-  border-radius: 14px !important;
 
   z-index: 0 !important;
   pointer-events: none !important;
+
   display: block !important;
+  border-radius: 14px !important;
 
   background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
 }
@@ -3069,17 +3064,15 @@ def render_pokedex():
         st.markdown("---")
     
 def _dex_card_container_style(gid: str, t1: str, t2: str) -> None:
-    # Normalize to your canonical type labels
     p = normalize_type(t1) or normalize_type(t2) or "Normal"
     s = normalize_type(t2)
 
-    # Build marker classes the CSS can react to
     cls = ["dex-grad-marker", f"t1-{p}"]
     if s and s != p:
         cls.append(f"t2-{s}")
 
     st.markdown(
-        f"<div class=\"{' '.join(cls)}\"></div>",
+        f"<span class=\"{' '.join(cls)}\"></span>",
         unsafe_allow_html=True,
     )
 
