@@ -627,25 +627,49 @@ st.markdown("""
 }
 
 /* ==========================
-   POKÉDEX CARD GRADIENTS (NO :has, NO Z-INDEX SABOTAGE)
-   We drop the "z-index all children" rule that breaks the overlay sizing.
+   POKÉDEX CARD GRADIENTS (Streamlit border containers)
+   The marker is rendered inside a markdown wrapper, so we must force that wrapper
+   to become a full-card absolute layer. Otherwise your gradient is clipped to a
+   tiny markdown block and you see... nothing.
    ========================== */
 
-/* Make the bordered wrapper clip the gradient nicely */
-div[data-testid="stVerticalBlockBorderWrapper"]{
+/* Only touch bordered containers that actually contain a dex gradient marker */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker){
   border-radius: 14px !important;
   overflow: hidden !important;
   background: transparent !important;
 }
 
-/* This is the actual card content root inside the border wrapper */
-div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]{
+/* Ensure the card root is the positioning context */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
+  > div[data-testid="stVerticalBlock"]{
   position: relative !important;
-  isolation: isolate !important; /* keeps negative z-index inside this card */
+  background: transparent !important;
+  isolation: isolate !important; /* keep stacking inside the card */
+}
+
+/* Put ALL normal content above the gradient by default */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
+  > div[data-testid="stVerticalBlock"] > *{
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* The markdown wrapper that contains the marker must fill the whole card */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
+  div[data-testid="stMarkdownContainer"]:has(.dex-grad-marker),
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.dex-grad-marker)
+  div[data-testid="stMarkdown"]:has(.dex-grad-marker){
+  position: absolute !important;
+  inset: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
   background: transparent !important;
 }
 
-/* The gradient layer itself (sits BEHIND the content) */
+/* The gradient layer itself */
 .dex-grad-marker{
   /* defaults */
   --opp-bg1: rgba(148,163,184,0.80);
@@ -655,9 +679,8 @@ div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlo
   inset: 0 !important;
   border-radius: 14px !important;
 
-  z-index: -1 !important;           /* key: behind everything */
+  z-index: 0 !important;
   pointer-events: none !important;
-
   display: block !important;
 
   background: radial-gradient(circle at top left, var(--opp-bg1), var(--opp-bg2)) !important;
@@ -700,6 +723,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlo
 .dex-grad-marker.t2-Dark{     --opp-bg2: rgba(15,23,42,0.90); }
 .dex-grad-marker.t2-Steel{    --opp-bg2: rgba(75,85,99,0.80); }
 .dex-grad-marker.t2-Normal{   --opp-bg2: rgba(156,163,175,0.75); }
+
 </style>
 """, unsafe_allow_html=True)
 
