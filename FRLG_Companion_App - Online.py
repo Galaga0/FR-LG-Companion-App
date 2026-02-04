@@ -314,61 +314,6 @@ st.markdown("""
   font-weight: 800;
 }
 
-/* Make evolve action look like a real button */
-/* Make evolve action look like a REAL button (high contrast, not washed out) */
-.evo-link-btn{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 8px 16px;
-  border-radius: 9999px;
-
-  /* Force solid, visible styling even inside Streamlit's markdown/link CSS */
-  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%) !important;
-  border: 2px solid rgba(255,255,255,0.75) !important;
-
-  color: #ffffff !important;
-  font-weight: 800;
-  font-size: 13px;
-  letter-spacing: 0.2px;
-  text-decoration: none !important;
-
-  box-shadow: 0 10px 18px rgba(0,0,0,0.35);
-  text-shadow: 0 1px 1px rgba(0,0,0,0.25);
-
-  transform: translateY(0);
-  transition: transform .08s ease-out, box-shadow .08s ease-out, filter .08s ease-out;
-}
-
-.evo-link-btn:hover{
-  filter: brightness(1.08) saturate(1.05);
-  transform: translateY(-1px);
-  box-shadow: 0 14px 26px rgba(0,0,0,0.42);
-}
-
-.evo-link-btn:active{
-  transform: translateY(0);
-  box-shadow: 0 8px 14px rgba(0,0,0,0.35);
-  filter: brightness(0.98);
-}
-
-.evo-link-btn:focus-visible{
-  outline: 3px solid rgba(56,189,248,0.95);
-  outline-offset: 2px;
-}
-
-/* Disabled state */
-.evo-link-btn.disabled{
-  opacity: 0.40;
-  pointer-events: none;
-
-  background: rgba(100,116,139,0.95) !important; /* solid slate */
-  border: 2px solid rgba(255,255,255,0.35) !important;
-  box-shadow: none;
-  text-shadow: none;
-}
-
 .moves-grid th, .moves-grid td{
   padding: var(--mv-pad-y) var(--mv-pad-x);
   font-size: var(--mv-font);
@@ -624,6 +569,60 @@ st.markdown("""
   grid-template-columns: 3fr 2fr 2fr 3fr 2fr 2fr;
   gap: 10px;
   align-items: center;
+}
+
+/* ==========================
+   Evolution Watch: REAL Streamlit button styled as your blue/grey pill
+   Scoped so it only hits buttons inside evo cards
+   ========================== */
+
+/* Marker placed inside the evo card container so we can scope styles */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button,
+div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding: 8px 16px !important;
+  border-radius: 9999px !important;
+
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%) !important;
+  border: 2px solid rgba(255,255,255,0.75) !important;
+
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.2px !important;
+
+  box-shadow: 0 10px 18px rgba(0,0,0,0.35) !important;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.25) !important;
+
+  transform: translateY(0) !important;
+  transition: transform .08s ease-out, box-shadow .08s ease-out, filter .08s ease-out !important;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button:hover,
+div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button:hover{
+  filter: brightness(1.08) saturate(1.05) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(0,0,0,0.42) !important;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button:active,
+div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button:active{
+  transform: translateY(0) !important;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.35) !important;
+  filter: brightness(0.98) !important;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button:disabled,
+div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button:disabled{
+  opacity: 0.40 !important;
+  background: rgba(100,116,139,0.95) !important;
+  border: 2px solid rgba(255,255,255,0.35) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  cursor: not-allowed !important;
 }
 
 /* ==========================
@@ -4106,17 +4105,14 @@ def render_evo_watch():
                     delta      = to_total - from_total
                     delta_txt  = f"+{delta}" if delta >= 0 else str(delta)
 
-                    # You render the action via st.button later, so prevent NameError in row_html
-                    action_btn_html = ""
-                    
                     # --- Build evolve action link (styled button) ---
                     guid = str(mon.get("guid", ""))
                     to_name = str(r.get("to", "")).strip()
 
-                    can_evolve = bool(r.get("ready")) or bool(force_all)
-                    btn_txt = "Evolve" if can_evolve else "Not ready"
+                    ready_now = bool(r.get("ready")) or bool(force_all)
+                    btn_txt = "Evolve" if ready_now else "Not ready"
 
-                    # Force param: kun "1" hvis du faktisk force’er forbi krav
+                    # Only force if force_all is on AND this row isn't normally ready
                     evo_force = "1" if (bool(force_all) and not bool(r.get("ready"))) else "0"
 
                     href = "?" + urlencode({
@@ -4125,11 +4121,11 @@ def render_evo_watch():
                         "evo_force": evo_force,
                     })
 
-                    btn_class = "evo-link-btn"
-                    if can_evolve:
-                        btn_class += " active"
+                    # Render as link (not Streamlit button)
+                    if ready_now:
+                        action_btn_html = f'<a class="evo-action-btn" href="{href}">{btn_txt}</a>'
                     else:
-                        btn_class += " disabled"
+                        action_btn_html = f'<span class="evo-action-btn evo-action-btn-disabled">{btn_txt}</span>'
 
                     # --- Row card HTML (target appears under current Pokémon header) ---
                     row_html = f"""
@@ -4159,42 +4155,6 @@ def render_evo_watch():
                       </div>
                     """
                     st_html(row_html)
-
-                    ready_now = bool(r.get("ready")) or bool(force_all)
-
-                    evo_guid = str(mon.get("guid"))
-                    evo_to = str(tgt_name)
-
-                    # in this loop, r IS the current evo option row
-                    row = r
-
-                    evo_force = "1" if (force_all and not bool(row.get("ready"))) else "0"
-
-                    guid = str(mon.get("guid", ""))
-                    to_name = str((evo_to or row.get("to", "")) or "").strip()
-                    is_ready = bool(row.get("ready"))
-                    force_on = bool(st.session_state.get("force_evo", False))
-
-                    href = "?" + urlencode({
-                        "evo_guid": guid,
-                        "evo_to": to_name,
-                        "evo_force": "1" if force_on else "0",
-                    })
-
-                    gid = mon.get("guid") or "noguid"
-                    to_sk = species_key(to_name) or ps_id(to_name) or "unk"
-                    opt_i = int(idx)  # idx is the loop index here
-
-                    # --- Evolve button (NO URL navigation) ---
-                    disabled = (not row.get("ready")) and (not force_all)
-
-                    if st.button(
-                        "Evolve",
-                        key=f"evolve_{mon.get('guid')}_{species_key(row.get('to',''))}",
-                        disabled=disabled,
-                        type="primary",
-                    ):
-                        _try_evolve(mon.get("guid"), row.get("to"), bool(force_all))
 
 def render_saveload():
     st.header("Save / Load")
