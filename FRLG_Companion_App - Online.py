@@ -4209,6 +4209,7 @@ def render_evo_watch():
                           <div class="evo-action-slot"></div>
                         </div>
                       </div>
+                      </div>
                     """
                     st_html(row_html)
 
