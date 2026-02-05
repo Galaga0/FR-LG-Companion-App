@@ -494,7 +494,7 @@ st.markdown("""
   border-radius: 14px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
-  margin: 8px 0;
+  margin: 2px 0;
 }
 
 /* Header labels row: no gradient, just a neutral bar */
@@ -503,7 +503,7 @@ st.markdown("""
   padding: 8px 12px;
   border: 1px solid rgba(148,163,184,.55);
   background: rgba(255,255,255,0.55);
-  margin: -2px 0 10px 0;
+  margin: -6px 0 10px 0;
 }
 @media (prefers-color-scheme: dark){
   .evo-header-bar{
@@ -541,7 +541,7 @@ st.markdown("""
   border-radius: 14px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.7);
-  margin: 8px 0 10px 0;
+  margin: 2px 0 10px 0;
   background: radial-gradient(circle at top left, var(--cur1), var(--cur2));
 }
 
