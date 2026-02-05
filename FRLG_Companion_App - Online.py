@@ -625,6 +625,22 @@ div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"]
   cursor: not-allowed !important;
 }
 
+/* Place the evolve button visually inside the evo-row-card under the Action column */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) [class*="st-key-evo_btn__"],
+div[data-testid="stContainer"]:has(.evo-card-marker) [class*="st-key-evo_btn__"]{
+  width: 100% !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+
+  /* Pull the button up so it sits on top of the row card (inside the Action area) */
+  margin-top: -54px !important;
+  margin-bottom: 0px !important;
+
+  padding-right: 12px !important;
+  z-index: 5 !important;
+  position: relative !important;
+}
+
 /* ==========================
    POKÉDEX CARD GRADIENTS (robust)
    Works by making the *card container itself* the positioning context,
@@ -4044,6 +4060,8 @@ def render_evo_watch():
             use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
 
             with cols[j].container(border=True):
+                st.markdown('<span class="evo-card-marker"></span>', unsafe_allow_html=True)
+                
                 # current mon types -> gradient for the marked header area
                 cur_types = purge_fairy_types_pair(mon.get("types") or [])
                 cur_t1, cur_t2 = cur_types[0], cur_types[1]
@@ -4105,7 +4123,7 @@ def render_evo_watch():
                     delta      = to_total - from_total
                     delta_txt  = f"+{delta}" if delta >= 0 else str(delta)
 
-                    # --- Build evolve action link (styled button) ---
+                    # --- Build evolve action: REAL Streamlit button that updates state ---
                     guid = str(mon.get("guid", ""))
                     to_name = str(r.get("to", "")).strip()
 
@@ -4113,21 +4131,9 @@ def render_evo_watch():
                     btn_txt = "Evolve" if ready_now else "Not ready"
 
                     # Only force if force_all is on AND this row isn't normally ready
-                    evo_force = "1" if (bool(force_all) and not bool(r.get("ready"))) else "0"
+                    do_force = bool(force_all) and not bool(r.get("ready"))
 
-                    href = "?" + urlencode({
-                        "evo_guid": guid,
-                        "evo_to": to_name,
-                        "evo_force": evo_force,
-                    })
-
-                    # Render as link (not Streamlit button)
-                    if ready_now:
-                        action_btn_html = f'<a class="evo-action-btn" href="{href}">{btn_txt}</a>'
-                    else:
-                        action_btn_html = f'<span class="evo-action-btn evo-action-btn-disabled">{btn_txt}</span>'
-
-                    # --- Row card HTML (target appears under current Pokémon header) ---
+                    # --- Row card HTML (Action cell left empty; button is overlaid via CSS) ---
                     row_html = f"""
                       <div class="evo-row-card" style="{row_style}">
                         <div class="evo-grid">
@@ -4148,13 +4154,16 @@ def render_evo_watch():
                             <span style="opacity:.9;">({delta_txt})</span>
                           </div>
 
-                          <div style="display:flex; justify-content:flex-end;">
-                            {action_btn_html}
-                          </div>
+                          <div class="evo-action-slot"></div>
                         </div>
                       </div>
                     """
                     st_html(row_html)
+
+                    # Real button (disabled when not ready). Styled + positioned by CSS.
+                    evo_key = f"evo_btn__{guid}__{species_key(to_name)}__{idx}"
+                    if st.button(btn_txt, key=evo_key, disabled=not ready_now):
+                        _try_evolve(guid, to_name, do_force)
 
 def render_saveload():
     st.header("Save / Load")
