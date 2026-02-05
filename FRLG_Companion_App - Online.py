@@ -668,6 +668,24 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card{
   overflow: hidden !important;
 }
 
+/* Evolution Watch: inner padding wrapper so HTML cards never bleed outside the bordered container */
+.evo-inner-pad{
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+/* Hard clamp: row card must not go full-bleed */
+.evo-inner-pad .evo-row-card{
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
 /* ==========================
    POKÉDEX CARD GRADIENTS (robust)
    Works by making the *card container itself* the positioning context,
@@ -4095,6 +4113,7 @@ def render_evo_watch():
                 band_style = _cur_band_vars(cur_t1, cur_t2)
 
                 current_band_html = f"""
+                <div class="evo-inner-pad">
                 <div class="evo-current-band" style="{band_style}">
                   <div class="evo-current-title">
                     {sprite_img_html(species)}<span><strong>{species} • Lv{lvl}</strong></span>
@@ -4110,6 +4129,7 @@ def render_evo_watch():
                     <div>Totals</div>
                     <div>Action</div>
                   </div>
+                </div>
                 </div>
               """
                 st_html(current_band_html)
@@ -4162,7 +4182,8 @@ def render_evo_watch():
 
                     # --- Row card HTML (Action cell left empty; button is overlaid via CSS) ---
                     row_html = f"""
-                      <div class="evo-row-card" style="{row_style}">
+                      <div class="evo-inner-pad">
+                        <div class="evo-row-card" style="{row_style}">
                         <div class="evo-grid">
                           <div style="display:flex; align-items:center; gap:10px;">
                             {sprite_img_html(to_name)}
