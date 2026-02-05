@@ -645,11 +645,6 @@ div[class*="st-key-evo_btn__"]{
   position: relative !important;
 }
 
-/* Evolution Watch: shift ALL content inside the bordered card upward */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) > div{
-  margin-top: -100px !important;
-}
-
 /* Evolution Watch: keep the row cards INSIDE the bordered container (no bleed left/right) */
 div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker),
 div[data-testid="stContainer"]:has(.evo-card-marker){
@@ -673,13 +668,17 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card{
   overflow: hidden !important;
 }
 
-/* Evolution Watch: inner padding wrapper so HTML cards never bleed outside the bordered container */
-.evo-inner-pad{
+/* Evolution Watch: this is the REAL vertical offset knob */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-inner-pad,
+div[data-testid="stContainer"]:has(.evo-card-marker) .evo-inner-pad{
   box-sizing: border-box !important;
   width: 100% !important;
   max-width: 100% !important;
   padding-left: 12px !important;
   padding-right: 12px !important;
+
+  position: relative !important;
+  top: -12px !important;   /* <-- MOVE UP/DOWN HERE */
 }
 
 /* Hard clamp: row card must not go full-bleed */
