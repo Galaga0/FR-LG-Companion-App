@@ -582,6 +582,9 @@ div[class*="st-key-evo_btn__"] button{
   align-items: center !important;
   justify-content: center !important;
 
+  width: 150px !important;
+  min-width: 150px !important;
+
   padding: 8px 16px !important;
   border-radius: 9999px !important;
 
@@ -623,15 +626,21 @@ div[class*="st-key-evo_btn__"] button:disabled{
 
 /* POSITION: visually place the evolve button inside the row card under Action */
 div[class*="st-key-evo_btn__"]{
-  width: 100% !important;
+  /* DO NOT stretch across the row */
+  width: fit-content !important;
   display: flex !important;
+
+  /* Push wrapper to the far right */
+  margin-left: auto !important;
   justify-content: flex-end !important;
 
   /* Pull upward so it overlays inside the evo-row-card “Action” cell */
   margin-top: -78px !important;
   margin-bottom: 0px !important;
 
-  padding-right: 12px !important;
+  /* This controls how far from the right edge it sits */
+  padding-right: 14px !important;
+
   z-index: 50 !important;
   position: relative !important;
 }
