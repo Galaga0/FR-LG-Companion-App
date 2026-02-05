@@ -647,7 +647,7 @@ div[class*="st-key-evo_btn__"]{
 
 /* Evolution Watch: shift ALL content inside the bordered card upward */
 div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) > div{
-  margin-top: -10px !important;
+  margin-top: -30px !important;
 }
 
 /* Evolution Watch: keep the row cards INSIDE the bordered container (no bleed left/right) */
