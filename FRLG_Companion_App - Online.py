@@ -639,7 +639,7 @@ div[class*="st-key-evo_btn__"]{
   margin-bottom: 0px !important;
 
   /* This controls how far from the right edge it sits */
-  padding-right: 40px !important;
+  padding-right: 60px !important;
 
   z-index: 50 !important;
   position: relative !important;
