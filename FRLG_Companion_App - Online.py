@@ -635,7 +635,7 @@ div[class*="st-key-evo_btn__"]{
   justify-content: flex-end !important;
 
   /* Pull upward so it overlays inside the evo-row-card “Action” cell */
-  margin-top: -86px !important;
+  margin-top: -92px !important;
   margin-bottom: 0px !important;
 
   /* This controls how far from the right edge it sits */
@@ -645,17 +645,27 @@ div[class*="st-key-evo_btn__"]{
   position: relative !important;
 }
 
-/* Keep Evolution Watch content INSIDE the bordered outer box */
+/* Evolution Watch: keep the row cards INSIDE the bordered container (no bleed left/right) */
 div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker),
 div[data-testid="stContainer"]:has(.evo-card-marker){
-  padding-bottom: 14px !important;   /* gives the rows breathing room inside the border */
-  overflow: hidden !important;       /* prevents any tiny bleed outside the outline */
-  border-radius: 12px !important;    /* matches your rounded look */
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  padding-bottom: 12px !important;
 }
 
-/* Ensure evo rows don't dip below the container border */
-.evo-row-card{
+/* Hard override: row card must not use negative margins or overflow past container */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-row-card,
+div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card{
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+
+  margin-left: 0px !important;
+  margin-right: 0px !important;
+
+  /* keep spacing nice without escaping the border */
   margin-bottom: 10px !important;
+  overflow: hidden !important;
 }
 
 /* ==========================
