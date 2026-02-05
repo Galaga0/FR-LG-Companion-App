@@ -572,13 +572,12 @@ st.markdown("""
 }
 
 /* ==========================
-   Evolution Watch: REAL Streamlit button styled as your blue/grey pill
-   Scoped so it only hits buttons inside evo cards
+   Evolution Watch: REAL Streamlit evolve button (blue when active, grey when disabled)
+   IMPORTANT: Style/position by the Streamlit key wrapper, NOT by :has(marker)
    ========================== */
 
-/* Marker placed inside the evo card container so we can scope styles */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button,
-div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button{
+/* STYLE: only buttons whose key starts with evo_btn__ */
+div[class*="st-key-evo_btn__"] button{
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -601,22 +600,19 @@ div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"]
   transition: transform .08s ease-out, box-shadow .08s ease-out, filter .08s ease-out !important;
 }
 
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button:hover,
-div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button:hover{
+div[class*="st-key-evo_btn__"] button:hover{
   filter: brightness(1.08) saturate(1.05) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 14px 26px rgba(0,0,0,0.42) !important;
 }
 
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button:active,
-div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button:active{
+div[class*="st-key-evo_btn__"] button:active{
   transform: translateY(0) !important;
   box-shadow: 0 8px 14px rgba(0,0,0,0.35) !important;
   filter: brightness(0.98) !important;
 }
 
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stButton"] > button:disabled,
-div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"] > button:disabled{
+div[class*="st-key-evo_btn__"] button:disabled{
   opacity: 0.40 !important;
   background: rgba(100,116,139,0.95) !important;
   border: 2px solid rgba(255,255,255,0.35) !important;
@@ -625,19 +621,18 @@ div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stButton"]
   cursor: not-allowed !important;
 }
 
-/* Place the evolve button visually inside the evo-row-card under the Action column */
-div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) [class*="st-key-evo_btn__"],
-div[data-testid="stContainer"]:has(.evo-card-marker) [class*="st-key-evo_btn__"]{
+/* POSITION: visually place the evolve button inside the row card under Action */
+div[class*="st-key-evo_btn__"]{
   width: 100% !important;
   display: flex !important;
   justify-content: flex-end !important;
 
-  /* Pull the button up so it sits on top of the row card (inside the Action area) */
-  margin-top: -54px !important;
+  /* Pull upward so it overlays inside the evo-row-card “Action” cell */
+  margin-top: -78px !important;
   margin-bottom: 0px !important;
 
   padding-right: 12px !important;
-  z-index: 5 !important;
+  z-index: 50 !important;
   position: relative !important;
 }
 
