@@ -620,6 +620,26 @@ st.markdown("""
   justify-content: flex-start !important;
 }
 
+/* 1) Make the Evo Watch outer container have equal top/bottom padding */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker),
+div[data-testid="stContainer"]:has(.evo-card-marker){
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
+
+/* 2) Remove “extra” margins that usually cause uneven top/bottom gaps */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-current-band,
+div[data-testid="stContainer"]:has(.evo-card-marker) .evo-current-band{
+  margin-top: 0 !important;
+  margin-bottom: 10px !important;  /* space between top card and header row */
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-row-card,
+div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card{
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;     /* prevents extra gap at the bottom */
+}
+
 /* ==========================
    Evolution Watch: REAL Streamlit evolve button (blue when active, grey when disabled)
    IMPORTANT: Style/position by the Streamlit key wrapper, NOT by :has(marker)
