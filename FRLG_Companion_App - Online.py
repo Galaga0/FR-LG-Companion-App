@@ -603,6 +603,23 @@ st.markdown("""
   align-self: center;         /* NEW */
 }
 
+/* Make the top current-band card and the row card the same height */
+.evo-current-band,
+.evo-row-card{
+  min-height: 86px !important;   /* tweak: 80-95 until it matches perfectly */
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  display: flex !important;
+  align-items: center !important; /* vertically center content inside the card */
+}
+
+/* The current band has a title row; keep it nicely centered too */
+.evo-current-title{
+  margin: 0 !important;          /* remove extra space that changes height */
+  width: 100% !important;
+  justify-content: flex-start !important;
+}
+
 /* ==========================
    Evolution Watch: REAL Streamlit evolve button (blue when active, grey when disabled)
    IMPORTANT: Style/position by the Streamlit key wrapper, NOT by :has(marker)
