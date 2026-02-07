@@ -726,6 +726,78 @@ div[class*="st-key-evo_btn__"] button:disabled{
   cursor: not-allowed !important;
 }
 
+/* ==========================
+   BATTLE PAGE: Select button (match Evo Watch "Evolve" button)
+   ========================== */
+
+/* Same look as evolve, but for keys starting with opp_btn__ */
+div[class*="st-key-opp_btn__"] button{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 150px !important;
+  min-width: 150px !important;
+
+  padding: 8px 16px !important;
+  border-radius: 9999px !important;
+
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%) !important;
+  border: 2px solid rgba(255,255,255,0.75) !important;
+
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.2px !important;
+
+  box-shadow: 0 10px 18px rgba(0,0,0,0.35) !important;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.25) !important;
+
+  transform: translateY(0) !important;
+  transition: transform .08s ease-out, box-shadow .08s ease-out, filter .08s ease-out !important;
+}
+
+div[class*="st-key-opp_btn__"] button:hover{
+  filter: brightness(1.08) saturate(1.05) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 14px 26px rgba(0,0,0,0.42) !important;
+}
+
+div[class*="st-key-opp_btn__"] button:active{
+  transform: translateY(0) !important;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.35) !important;
+  filter: brightness(0.98) !important;
+}
+
+div[class*="st-key-opp_btn__"] button:disabled{
+  opacity: 0.40 !important;
+  background: rgba(100,116,139,0.95) !important;
+  border: 2px solid rgba(255,255,255,0.35) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Anchor the button to each opponent card block */
+div[data-testid="stVerticalBlock"]:has(.opp-card){
+  position: relative !important;
+}
+
+/* Place the Select button inside the opponent card, right side, vertically centered */
+div[data-testid="stVerticalBlock"]:has(.opp-card) div[class*="st-key-opp_btn__"]{
+  position: absolute !important;
+  right: 18px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+
+  z-index: 50 !important;
+  width: fit-content !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+}
+
 /* === Evo Watch: anchor button to the Streamlit block that contains the evo row === */
 div[data-testid="stVerticalBlock"]:has(.evo-row-card){
   position: relative !important;   /* this is the anchor that actually exists */
@@ -3616,16 +3688,15 @@ def render_battle():
                 """
 
                 with cols[col_pos]:
-                    # Full card including in-card Select button (HTML link)
                     st.markdown(card_html, unsafe_allow_html=True)
 
-                    # In-app select (no URL navigation / no new tab / no new session)
-                    _sp, _btn = st.columns([4, 1])
-                    with _btn:
-                        if st.button("Select", key=f"opp_pick_{selected_enc_idx}_{idx}", type="primary"):
-                            STATE["last_battle_pick"] = [selected_enc_idx, idx]
-                            save_state(STATE)
-                            do_rerun()
+                    # Real in-app select button (styled + positioned like Evo Watch "Evolve")
+                    btn_txt = "Selected" if is_selected else "Select"
+                    btn_key = f"opp_btn__{selected_enc_idx}__{idx}"
+                    if st.button(btn_txt, key=btn_key, disabled=is_selected):
+                        STATE["last_battle_pick"] = [selected_enc_idx, idx]
+                        save_state(STATE)
+                        do_rerun()
 
     # === Clamp indices and build opponent header ===
     selected_enc_idx, selected_mon_idx = STATE.get("last_battle_pick", [0, 0])
