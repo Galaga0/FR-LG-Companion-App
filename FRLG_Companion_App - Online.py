@@ -4197,7 +4197,6 @@ def render_evo_watch():
                               {sprite_img_html(to_name)}
                               <div>
                                 <div style="font-weight:800; font-size:14px; line-height:1.15;">{to_name}</div>
-                                <div style="opacity:.9; font-size:12px;">Next evolution</div>
                               </div>
                             </div>
 
