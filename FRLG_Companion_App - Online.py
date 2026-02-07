@@ -497,14 +497,15 @@ st.markdown("""
   margin: 2px 0;
 }
 
-/* Header labels row: no gradient, just a neutral bar */
 .evo-header-bar{
   border-radius: 12px;
   padding: 8px 12px;
   border: 1px solid rgba(148,163,184,.55);
   background: rgba(255,255,255,0.55);
-  margin: 0px 0 10px 0;
+
+  margin: 10px 0 10px 0 !important;  /* <-- ingen negativ margin */
 }
+
 @media (prefers-color-scheme: dark){
   .evo-header-bar{
     background: rgba(15,23,42,0.35);
