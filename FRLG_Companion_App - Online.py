@@ -546,6 +546,12 @@ st.markdown("""
   background: radial-gradient(circle at top left, var(--cur1), var(--cur2));
 }
 
+/* Center the header row (Target/Method/...) vertically within the current band */
+.evo-current-band .evo-header-bar{
+  margin-top: auto !important;
+  margin-bottom: auto !important;
+}
+
 .evo-current-title{
   display:flex;
   align-items:center;
