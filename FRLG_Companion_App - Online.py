@@ -734,10 +734,10 @@ div[data-testid="stVerticalBlock"]:has(.evo-row-card){
 /* Put the evolve button in the Action area (right side of the row) */
 div[data-testid="stVerticalBlock"]:has(.evo-row-card) div[class*="st-key-evo_btn__"]{
   position: absolute !important;
-  right: 70px !important;
+  right: 75px !important;
 
   /* vertical placement of the button relative to the row */
-  top: 275px !important;            /* <-- adjust this number if needed */
+  top: 200px !important;            /* <-- adjust this number if needed */
   transform: none !important;
 
   z-index: 50 !important;
