@@ -626,20 +626,20 @@ div[class*="st-key-evo_btn__"] button:disabled{
 
 /* POSITION: visually place the evolve button inside the row card under Action */
 div[class*="st-key-evo_btn__"]{
-  /* DO NOT stretch across the row */
   width: fit-content !important;
   display: flex !important;
 
-  /* Push wrapper to the far right */
   margin-left: auto !important;
   justify-content: flex-end !important;
 
-  /* Pull upward so it overlays inside the evo-row-card “Action” cell */
-  margin-top: -92px !important;
-  margin-bottom: 0px !important;
+  /* DO NOT use negative margins here, it breaks containment */
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 
-  /* This controls how far from the right edge it sits */
-  padding-right: 110px !important;
+  padding-right: 0 !important;
+
+  /* If you need it visually higher, use transform instead (doesn't affect layout bounds) */
+  transform: translateY(-22px) !important;
 
   z-index: 50 !important;
   position: relative !important;
