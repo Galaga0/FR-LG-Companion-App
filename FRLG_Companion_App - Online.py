@@ -566,7 +566,7 @@ st.markdown("""
   z-index: 1;
 
   display: grid;
-  grid-template-columns: 3fr 2fr 2fr 3fr 2fr 2fr;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   align-items: center;
 }
