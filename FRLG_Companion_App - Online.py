@@ -4204,7 +4204,7 @@ def render_evo_watch():
                             <div>{r.get("req_txt","—")}</div>
                             <div>{r.get("status","")}</div>
 
-                            <div style="font-size:12px;">
+                            <div>
                               {from_total} → <b>{to_total}</b>
                               <span style="opacity:.9;">({delta_txt})</span>
                             </div>
