@@ -624,21 +624,21 @@ div[class*="st-key-evo_btn__"] button:disabled{
   cursor: not-allowed !important;
 }
 
-/* Anchor each row so we can position the button relative to THAT row */
-.evo-row-wrap{
-  position: relative !important;
+/* === Evo Watch: anchor button to the Streamlit block that contains the evo row === */
+div[data-testid="stVerticalBlock"]:has(.evo-row-card){
+  position: relative !important;   /* this is the anchor that actually exists */
 }
 
-/* Place the Streamlit evolve button inside the row, under Action (right side) */
-.evo-row-wrap div[class*="st-key-evo_btn__"]{
+/* Put the evolve button in the Action area (right side of the row) */
+div[data-testid="stVerticalBlock"]:has(.evo-row-card) div[class*="st-key-evo_btn__"]{
   position: absolute !important;
+  right: 22px !important;
 
-  right: 16px !important;      /* right edge inside the card */
-  top: 50% !important;         /* vertically centered in the row */
-  transform: translateY(-50%) !important;
+  /* vertical placement of the button relative to the row */
+  top: 92px !important;            /* <-- adjust this number if needed */
+  transform: none !important;
 
   z-index: 50 !important;
-
   width: fit-content !important;
   margin: 0 !important;
   padding: 0 !important;
