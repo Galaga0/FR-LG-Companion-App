@@ -803,7 +803,7 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card:last-child{
 /* HARD NU DGE: move the entire Evo Watch block up */
 .evo-inner-pad{
   position: relative !important;
-  top: -6px !important;               /* tweak: -3 to -10 */
+  top: -4px !important;               /* tweak: -3 to -10 */
 }
 
 /* If "top" still doesn’t budge (rare), this will */
