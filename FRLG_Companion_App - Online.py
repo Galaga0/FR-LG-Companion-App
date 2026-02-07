@@ -503,7 +503,7 @@ st.markdown("""
   padding: 8px 12px;
   border: 1px solid rgba(148,163,184,.55);
   background: rgba(255,255,255,0.55);
-  margin: 5px 0 10px 0;
+  margin: 0px 0 10px 0;
 }
 @media (prefers-color-scheme: dark){
   .evo-header-bar{
@@ -714,6 +714,18 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-inner-pad{
   max-width: 100% !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
+}
+
+/* === Center the HEADER BAR ROW within the CURRENT BAND container === */
+.evo-current-band{
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 110px !important;   /* controls how much vertical space exists */
+}
+
+.evo-current-band .evo-header-bar{
+  margin-top: auto !important;     /* pushes it down */
+  margin-bottom: auto !important;  /* pulls it back up -> true vertical center */
 }
 
 /* ==========================
