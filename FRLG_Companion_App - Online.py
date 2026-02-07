@@ -811,6 +811,18 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card:last-child{
   transform: translateY(-3px) !important;
 }
 
+.stone-mid{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 700;
+  white-space: nowrap;
+  height: 100%;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 /* ==========================
    POKÉDEX CARD GRADIENTS (robust)
    Works by making the *card container itself* the positioning context,
@@ -4026,12 +4038,19 @@ def render_evo_watch():
     for i, stone in enumerate(items):
         c = ecols[i % len(ecols)]
         cur = int(STATE['stones'].get(stone, 0))
-        c.markdown(f"**{stone_with_emoji(stone)}**: {cur}")
-        cc1, cc2 = c.columns(2)
+
+        cc1, cc_mid, cc2 = c.columns([1, 2, 1])
+
         if cc1.button("− Remove", key=f"st_dec_{stone.replace(' ', '_')}"):
             if STATE['stones'].get(stone, 0) > 0:
                 STATE['stones'][stone] -= 1
                 save_state(STATE); do_rerun()
+
+        cc_mid.markdown(
+            f'<div class="stone-mid">{stone_with_emoji(stone)}: {cur}</div>',
+            unsafe_allow_html=True
+        )
+
         if cc2.button("Add +", key=f"st_inc_{stone.replace(' ', '_')}"):
             STATE['stones'][stone] = int(STATE['stones'].get(stone, 0)) + 1
             save_state(STATE); do_rerun()
