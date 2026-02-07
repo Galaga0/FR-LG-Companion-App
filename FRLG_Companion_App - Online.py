@@ -571,6 +571,21 @@ st.markdown("""
   align-items: center;
 }
 
+/* Center all non-Target cells */
+.evo-grid > div{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-width: 0;
+}
+
+/* Keep Target (sprite + name) left-aligned */
+.evo-grid > div:first-child{
+  justify-content: flex-start;
+  text-align: left;
+}
+
 /* ==========================
    Evolution Watch: REAL Streamlit evolve button (blue when active, grey when disabled)
    IMPORTANT: Style/position by the Streamlit key wrapper, NOT by :has(marker)
