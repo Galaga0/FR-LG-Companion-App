@@ -631,7 +631,7 @@ div[data-testid="stContainer"]:has(.evo-card-marker){
 div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-current-band,
 div[data-testid="stContainer"]:has(.evo-card-marker) .evo-current-band{
   margin-top: 0 !important;
-  margin-bottom: 10px !important;  /* space between top card and header row */
+  margin-bottom: 0 !important;  /* space between top card and header row */
 }
 
 div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-row-card,
@@ -720,6 +720,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker),
 div[data-testid="stContainer"]:has(.evo-card-marker){
   padding-left: 10px !important;
   padding-right: 10px !important;
+  padding-top: 12px !important;
   padding-bottom: 12px !important;
 }
 
@@ -734,7 +735,7 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card{
   margin-right: 0px !important;
 
   /* keep spacing nice without escaping the border */
-  margin-bottom: 10px !important;
+  margin-bottom: 0px !important;
   overflow: hidden !important;
 }
 
