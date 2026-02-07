@@ -800,6 +800,17 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card:last-child{
   margin-bottom: 0 !important;
 }
 
+/* HARD NU DGE: move the entire Evo Watch block up */
+.evo-inner-pad{
+  position: relative !important;
+  top: -6px !important;               /* tweak: -3 to -10 */
+}
+
+/* If "top" still doesn’t budge (rare), this will */
+.evo-inner-pad{
+  transform: translateY(-6px) !important;
+}
+
 /* ==========================
    POKÉDEX CARD GRADIENTS (robust)
    Works by making the *card container itself* the positioning context,
