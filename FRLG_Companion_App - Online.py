@@ -782,7 +782,7 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-inner-pad{
   padding-right: 12px !important;
 
   position: relative !important;
-  top: -100px !important;   /* <-- MOVE UP/DOWN HERE */
+  top: -6px !important;   /* <-- MOVE UP/DOWN HERE */
 }
 
 /* Hard clamp: row card must not go full-bleed */
