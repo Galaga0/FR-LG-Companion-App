@@ -624,19 +624,21 @@ div[class*="st-key-evo_btn__"] button:disabled{
   cursor: not-allowed !important;
 }
 
-/* POSITION: put the evolve button INSIDE the row card (no extra blank space below) */
-.evo-row-card div[class*="st-key-evo_btn__"]{
+/* Anchor each row so we can position the button relative to THAT row */
+.evo-row-wrap{
+  position: relative !important;
+}
+
+/* Place the Streamlit evolve button inside the row, under Action (right side) */
+.evo-row-wrap div[class*="st-key-evo_btn__"]{
   position: absolute !important;
 
-  /* Right side of the card */
-  right: 16px !important;
-
-  /* Vertical placement under the "Action" column */
-  top: 64px !important;
+  right: 16px !important;      /* right edge inside the card */
+  top: 50% !important;         /* vertically centered in the row */
+  transform: translateY(-50%) !important;
 
   z-index: 50 !important;
 
-  /* keep wrapper tight */
   width: fit-content !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -4183,39 +4185,44 @@ def render_evo_watch():
                     # Only force if force_all is on AND this row isn't normally ready
                     do_force = bool(force_all) and not bool(r.get("ready"))
 
-                    # --- Row card HTML (Action cell left empty; button is overlaid via CSS) ---
+                    # --- Row wrapper: keeps the row card + the Streamlit button in ONE DOM block ---
+                    st.markdown('<div class="evo-row-wrap">', unsafe_allow_html=True)
+
+                    # Row card HTML (Action cell is just a visual slot; real button is absolutely positioned)
                     row_html = f"""
                       <div class="evo-inner-pad">
                         <div class="evo-row-card" style="{row_style}">
-                        <div class="evo-grid">
-                          <div style="display:flex; align-items:center; gap:10px;">
-                            {sprite_img_html(to_name)}
-                            <div>
-                              <div style="font-weight:800; font-size:14px; line-height:1.15;">{to_name}</div>
-                              <div style="opacity:.9; font-size:12px;">Next evolution</div>
+                          <div class="evo-grid">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                              {sprite_img_html(to_name)}
+                              <div>
+                                <div style="font-weight:800; font-size:14px; line-height:1.15;">{to_name}</div>
+                                <div style="opacity:.9; font-size:12px;">Next evolution</div>
+                              </div>
                             </div>
+
+                            <div>{method_pretty}</div>
+                            <div>{r.get("req_txt","—")}</div>
+                            <div>{r.get("status","")}</div>
+
+                            <div style="font-size:12px;">
+                              {from_total} → <b>{to_total}</b>
+                              <span style="opacity:.9;">({delta_txt})</span>
+                            </div>
+
+                            <div class="evo-action-slot"></div>
                           </div>
-
-                          <div>{method_pretty}</div>
-                          <div>{r.get("req_txt","—")}</div>
-                          <div>{r.get("status","")}</div>
-
-                          <div style="font-size:12px;">
-                            {from_total} → <b>{to_total}</b>
-                            <span style="opacity:.9;">({delta_txt})</span>
-                          </div>
-
-                          <div class="evo-action-slot"></div>
                         </div>
-                      </div>
                       </div>
                     """
                     st_html(row_html)
 
-                    # Real button (disabled when not ready). Styled + positioned by CSS.
+                    # Real Streamlit button (now inside the evo-row-wrap DOM block)
                     evo_key = f"evo_btn__{guid}__{species_key(to_name)}__{idx}"
                     if st.button(btn_txt, key=evo_key, disabled=not ready_now):
                         _try_evolve(guid, to_name, do_force)
+
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 def render_saveload():
     st.header("Save / Load")
