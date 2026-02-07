@@ -819,6 +819,8 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card:last-child{
   font-weight:700;
   white-space:nowrap;
   margin: 0 0 6px 0;
+
+  transform: translateX(-6px);  /* <-- tweak this: -2px, -4px, -8px etc. */
 }
 
 /* ==========================
