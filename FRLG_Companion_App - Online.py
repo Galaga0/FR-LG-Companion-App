@@ -749,7 +749,7 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-inner-pad{
   padding-right: 12px !important;
 
   position: relative !important;
-  top: -12px !important;   /* <-- MOVE UP/DOWN HERE */
+  top: 0px !important;   /* <-- MOVE UP/DOWN HERE */
 }
 
 /* Hard clamp: row card must not go full-bleed */
@@ -771,6 +771,12 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-inner-pad{
 .evo-current-band .evo-header-bar{
   margin-top: auto !important;     /* pushes it down */
   margin-bottom: auto !important;  /* pulls it back up -> true vertical center */
+}
+
+/* Ens top/bund-luft inde i outer container */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-row-card:last-child,
+div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card:last-child{
+  margin-bottom: 0 !important;
 }
 
 /* ==========================
