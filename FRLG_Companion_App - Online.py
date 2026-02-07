@@ -624,25 +624,24 @@ div[class*="st-key-evo_btn__"] button:disabled{
   cursor: not-allowed !important;
 }
 
-/* POSITION: visually place the evolve button inside the row card under Action */
-div[class*="st-key-evo_btn__"]{
-  width: fit-content !important;
-  display: flex !important;
+/* POSITION: put the evolve button INSIDE the row card (no extra blank space below) */
+.evo-row-card div[class*="st-key-evo_btn__"]{
+  position: absolute !important;
 
-  margin-left: auto !important;
-  justify-content: flex-end !important;
+  /* Right side of the card */
+  right: 16px !important;
 
-  /* DO NOT use negative margins here, it breaks containment */
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-
-  padding-right: 0 !important;
-
-  /* If you need it visually higher, use transform instead (doesn't affect layout bounds) */
-  transform: translateY(-22px) !important;
+  /* Vertical placement under the "Action" column */
+  top: 64px !important;
 
   z-index: 50 !important;
-  position: relative !important;
+
+  /* keep wrapper tight */
+  width: fit-content !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
 }
 
 /* Evolution Watch: keep the row cards INSIDE the bordered container (no bleed left/right) */
