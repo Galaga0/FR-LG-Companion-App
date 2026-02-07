@@ -4249,6 +4249,10 @@ def render_evo_watch():
             species = mon.get("species", "?")
             use_rows = [r for r in rows if r["ready"]] if show_ready_only else rows
 
+            # If user wants ONLY ready evolutions, hide mons with none ready
+            if show_ready_only and not use_rows:
+                continue
+
             with cols[j].container(border=True):
                 st.markdown('<span class="evo-card-marker"></span>', unsafe_allow_html=True)
                 
