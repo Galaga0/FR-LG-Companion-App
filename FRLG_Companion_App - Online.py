@@ -546,12 +546,6 @@ st.markdown("""
   background: radial-gradient(circle at top left, var(--cur1), var(--cur2));
 }
 
-/* Center the header row (Target/Method/...) vertically within the current band */
-.evo-current-band .evo-header-bar{
-  margin-top: auto !important;
-  margin-bottom: auto !important;
-}
-
 .evo-current-title{
   display:flex;
   align-items:center;
@@ -638,6 +632,45 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) .evo-row-c
 div[data-testid="stContainer"]:has(.evo-card-marker) .evo-row-card{
   margin-top: 0 !important;
   margin-bottom: 0 !important;     /* prevents extra gap at the bottom */
+}
+
+/* =========================================
+   EVO WATCH: Fix uneven top/bottom gaps
+   Cause: Streamlit markdown blocks add margins/padding.
+   We remove that ONLY for evo blocks and control spacing ourselves.
+   ========================================= */
+
+/* Remove Streamlit's extra block spacing around evo HTML blocks */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stMarkdown"]:has(.evo-inner-pad),
+div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stMarkdown"]:has(.evo-inner-pad){
+  margin: 0 !important;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker) div[data-testid="stMarkdownContainer"]:has(.evo-inner-pad),
+div[data-testid="stContainer"]:has(.evo-card-marker) div[data-testid="stMarkdownContainer"]:has(.evo-inner-pad){
+  padding: 0 !important;
+}
+
+/* Make evo-inner-pad the spacing controller */
+.evo-inner-pad{
+  padding: 0 12px !important;     /* keeps left/right consistent */
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;           /* SAME gap everywhere */
+}
+
+/* Kill margins that compete with the gap */
+.evo-current-band,
+.evo-header-bar,
+.evo-row-card{
+  margin: 0 !important;
+}
+
+/* Keep outer container padding symmetric (you already do this, just ensure it stays) */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.evo-card-marker),
+div[data-testid="stContainer"]:has(.evo-card-marker){
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
 }
 
 /* ==========================
@@ -759,18 +792,6 @@ div[data-testid="stContainer"]:has(.evo-card-marker) .evo-inner-pad{
   max-width: 100% !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
-}
-
-/* === Center the HEADER BAR ROW within the CURRENT BAND container === */
-.evo-current-band{
-  display: flex !important;
-  flex-direction: column !important;
-  min-height: 110px !important;   /* controls how much vertical space exists */
-}
-
-.evo-current-band .evo-header-bar{
-  margin-top: auto !important;     /* pushes it down */
-  margin-bottom: auto !important;  /* pulls it back up -> true vertical center */
 }
 
 /* Ens top/bund-luft inde i outer container */
