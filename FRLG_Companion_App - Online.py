@@ -635,7 +635,7 @@ div[data-testid="stVerticalBlock"]:has(.evo-row-card) div[class*="st-key-evo_btn
   right: 135px !important;
 
   /* vertical placement of the button relative to the row */
-  top: 270px !important;            /* <-- adjust this number if needed */
+  top: 275px !important;            /* <-- adjust this number if needed */
   transform: none !important;
 
   z-index: 50 !important;
