@@ -586,6 +586,16 @@ st.markdown("""
   text-align: left;
 }
 
+.evo-row-card{
+  display: flex;              /* NEW */
+  align-items: center;        /* NEW: vertical center the grid inside the card */
+}
+
+.evo-grid{
+  width: 100%;                /* NEW */
+  align-self: center;         /* NEW */
+}
+
 /* ==========================
    Evolution Watch: REAL Streamlit evolve button (blue when active, grey when disabled)
    IMPORTANT: Style/position by the Streamlit key wrapper, NOT by :has(marker)
